@@ -1,10 +1,11 @@
 """Revised on: 01.08.2021, @author: MYI, #Python version: 3.6.8 [32 bit]"""
 #### To Do lists:
-## - CM#0: Connecting this code with the output csv file of day-ahead scheduling
 ## - CM#1: For the day-ahead -> First solution: without weather prediction; Second solution: MeteoSwiss API
-## - CM#2: We don't have the maximum active power in real-time (see function "forecasting_pv_rt()")
-## - CM#3: Run other version of Python 64 bit to run the optimization code of Guroubi
-
+## - CM#2: We don't have the maximum active power in real-time (see function "forecasting_pv_rt()") real_time forecast
+## - CM#3: Edit interface_control function based on RT_optimization function using guroubi
+## - CM#4: Real-time forecasting of loads
+## - CM#5: Day_ahead forecasting of loads and PVs
+## - CM#6: Connecting this code with the output csv file of day-ahead scheduling
 
 #### Importing packages
 import os
@@ -40,17 +41,17 @@ mydb = mysql.connector.connect(host="10.192.48.47",
                                password="at5KUPusS9",
                                database="heigvdch_meteo")  # Database for reading real-time data
 
-#### Temporary variables for dayahead scheduling (will be replaced by connecting to day_ahead optimization)
-P_SC, Q_SC = [2] * 144, [1] * 144
+#### Temporary variables for dayahead scheduling (CM#5 and CM#6 and CM#1)
+P_SC, Q_SC = [2] * 144, [0] * 144
 RPP_SC, RPN_SC, RQP_SC, RQN_SC = [0.4] * 144, [0.4] * 144, [0.2] * 144, [0.2] * 144
 
 
 #### Functions
 def interface_control_digriflex(Vec_Inp):
-    """" Completed:
+    """" Not Completed: CM#3 and CM#4
     This function is for intefacing with LabVIEW in DiGriFlex project
     Input: Vec_Inp as ordered by Douglas in "07/10/2020 14:06" (See "\Data\Ordre_informations_controle_2020.10.07.xlsx")
-    Output: Vec_Out = [P Batt, Q Batt, P SolarMax, Q SolarMax, P ABB, Q ABB, P KACO, Q KACO, P Cinergia, Q Cinergia,
+    Output: Vec_Out = [P Batt, Q Batt, P SolarMax, Q SolarMax, P_step ABB, Cos_phi ABB, P KACO, Q KACO, P Cinergia, Q Cinergia,
                        P1 SOP, Q1 SOP, P2 SOP, Q2 SOP, P GM, Q GM]
     """
     ## Reading inputs
@@ -93,16 +94,18 @@ def interface_control_digriflex(Vec_Inp):
               'SOC = pickle.load(file_to_read);' +
               'file_to_read.close();'
               'import Functions_P.OptimizationFunctions as of;'
-              'ABB_P_sp, Battery_P_sp, Battery_Q_sp = ' +
+              'ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp = ' +
               'of.rt_following_digriflex(grid_inp, P_net, Q_net, forecast, SOC);' +  # this function will be changed
               'file_to_store = open(r\'' + dir_path + '\' + r\'/Data/tmp.pickle\', \'wb\');' +
               'pickle.dump(ABB_P_sp, file_to_store);' +
+              'pickle.dump(ABB_c_sp, file_to_store);' +
               'pickle.dump(Battery_P_sp, file_to_store);' +
               'pickle.dump(Battery_Q_sp, file_to_store);' +
               'file_to_store.close()\"'
               )
     file_to_read = open(dir_path + r"/Data/tmp.pickle", "rb")
     ABB_P_sp = pickle.load(file_to_read)
+    ABB_c_sp = pickle.load(file_to_read)
     Battery_P_sp = pickle.load(file_to_read)
     Battery_Q_sp = pickle.load(file_to_read)
     file_to_read.close()
@@ -111,6 +114,7 @@ def interface_control_digriflex(Vec_Inp):
     Vec_Out[0] = Battery_P_sp
     Vec_Out[1] = Battery_Q_sp
     Vec_Out[4] = ABB_P_sp
+    Vec_Out[5] = ABB_c_sp
     return Vec_Out
 
 
@@ -179,3 +183,4 @@ def forecasting_pv_rt(pred_for, time_step, N_boot):
 #### TESTING
 Vec_Inp0 = open(dir_path + r"/Data/test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
 Vec_Out0 = interface_control_digriflex(Vec_Inp0)
+print(Vec_Out0)

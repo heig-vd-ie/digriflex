@@ -1,4 +1,4 @@
-"""Revised on: 01.06.2021, @author: MYI"""
+"""Revised on: 01.08.2021, @author: MYI, #Python version: 3.6.8 [32 bit]"""
 ##### To Do lists:
 ## - CM#1: R and X of lines, efficiencies data of battery, X of PVs (see function "reine_parameters()")
 ## - CM#2: Integrating with the dayahead forecasting code of Pasquale (see function "forecast_defining")
@@ -74,7 +74,7 @@ def reine_parameters():
                                  (parameters['Ond_V_conv_pu'][x] - parameters['Ond_V_grid_pu'][x]) * parameters['Sbase']
                                  / (1000 * parameters['Ond_Cap'][x]) for x in range(3)]
     # Con = [Battery]
-    parameters['Con_SOC_min_kWh'] = [1]
+    parameters['Con_SOC_min_kWh'] = [0]
     parameters['Con_SOC_max_kWh'] = [62]
     parameters['Con_S_max_kVA'] = [120]
     parameters['Con_P_max_kW'] = [100]
@@ -87,7 +87,7 @@ def reine_parameters():
 
 def grid_topology_sim(case_name, Vec_inp):
     """" Completed
-    This function is
+    This function is for generating the file of grid_inp
     Inputs:
         - case_name: Name of the case you are working
         - Vec_inp: Vec_Inp as ordered by Douglas in "07/10/2020 14:06"
@@ -684,6 +684,7 @@ def sim_meas_time_series(data_name, grid_formers):
                 "Nt": , "Nf": , "meas_number": ,
         }
     """
+    Day = 1
     data = {}
     data["Name"] = dir_name + r"/Data/" + data_name + ".mat"
     data["value"] = sio.loadmat(data["Name"])
@@ -898,7 +899,7 @@ def forecast_defining(pv_hist, dem_P_hist, dem_Q_hist):
         }
     """
     fore_inp = {}
-    fore_inp["P_PV"] = np.abs(pv_hist[0] + pv_hist[1] + pv_hist[2]) / (3 * 200)  ## in [per unit]
+    fore_inp["P_PV"] = np.abs(pv_hist[0] + pv_hist[1] + pv_hist[2]) / (3 * 200)  # in [per unit]
     fore_inp["P_PV_zeta+"] = 0.2 * fore_inp["P_PV"]
     fore_inp["P_PV_zeta-"] = 0.2 * fore_inp["P_PV"]
     fore_inp["ST_SOC_0"] = 0.5
@@ -914,8 +915,8 @@ def forecast_defining(pv_hist, dem_P_hist, dem_Q_hist):
     fore_inp["Dem_Q_zeta+"] = {}
     fore_inp["Dem_Q_zeta-"] = {}
     for n in range(dem_P_hist.shape[0]):
-        fore_inp["Dem_P"][n] = -(dem_P_hist[n][0] + dem_P_hist[n][1] + dem_P_hist[n][2]) / (3)  ## in [kW]
-        fore_inp["Dem_Q"][n] = (dem_Q_hist[n][0] + dem_Q_hist[n][1] + dem_Q_hist[n][2]) / (3)  ## in [kW]
+        fore_inp["Dem_P"][n] = -(dem_P_hist[n][0] + dem_P_hist[n][1] + dem_P_hist[n][2]) / 3  # in [kW]
+        fore_inp["Dem_Q"][n] = (dem_Q_hist[n][0] + dem_Q_hist[n][1] + dem_Q_hist[n][2]) / 3  # in [kW]
         fore_inp["Dem_P_zeta+"][n] = 0 * fore_inp["Dem_P"][n]
         fore_inp["Dem_P_zeta-"][n] = 0 * fore_inp["Dem_P"][n]
         fore_inp["Dem_Q_zeta+"][n] = 0 * fore_inp["Dem_Q"][n]
@@ -924,6 +925,7 @@ def forecast_defining(pv_hist, dem_P_hist, dem_Q_hist):
 
 
 def rt_simulation(grid_inp, meas_inp, fore_inp, DA_result, t):
+    _ = meas_inp
     rt_meas_inp = {}
     rt_meas_inp["delta"] = DA_result["delta"]
     rt_meas_inp["Loss_Coeff"] = 1
@@ -950,10 +952,10 @@ def rt_simulation(grid_inp, meas_inp, fore_inp, DA_result, t):
         rt_meas_inp["ST_SOC_des"][s] = DA_result["Solution_ST_SOC"][s][t]
         if t == 0:
             a = max([-b, min([b, gauss(0, 1)])]) / norm.ppf(fore_inp["confidence"])
-            rt_meas_inp["ST_SOC_t_1"][s] = (fore_inp["ST_SOC_0"] + fore_inp["ST_SOC_zeta+"] / norm.ppf(
-                fore_inp["confidence"]) \
-                                            - (fore_inp["ST_SOC_zeta+"] + fore_inp["ST_SOC_zeta-"]) * a) * \
-                                           grid_inp["storage_elements"][s]["SOC_max_kWh"]
+            rt_meas_inp["ST_SOC_t_1"][s] = \
+                (fore_inp["ST_SOC_0"] + fore_inp["ST_SOC_zeta+"] / norm.ppf(fore_inp["confidence"])
+                 * (fore_inp["ST_SOC_zeta+"] + fore_inp["ST_SOC_zeta-"]) * a) \
+                * grid_inp["storage_elements"][s]["SOC_max_kWh"]
         else:
             rt_meas_inp["ST_SOC_t_1"][s] = DA_result["Solution_ST_SOC_RT"][s]
     rt_meas_inp["Vmag"] = np.zeros(np.size(grid_inp["grid_formers"], 0))
@@ -1028,19 +1030,19 @@ def figuring(grid_inp, meas_inp, meas, fig_type, title):
         Figure = {"fig_" + str(fig_n): plt.figure()}
         Figure["fig_" + str(fig_n)].set_figheight(h * np.size(grid_inp["buses"], 0))
         Figure["fig_" + str(fig_n)].set_figwidth(w)
-        for n in range((np.size(grid_inp["buses"], 0))):
-            Figure["ax_" + str(fig_n) + "_" + str(n + 1)] = Figure["fig_" + str(fig_n)].add_subplot(
-                np.size(grid_inp["buses"], 0), 1, n + 1)
-            Figure["ax_" + str(fig_n) + "_" + str(n + 1)].plot(x_lab,
-                                                               (meas["V"][n][0][0:(meas_inp["Nt"])]
-                                                                + meas["V"][n][1][0:(meas_inp["Nt"])]
-                                                                + meas["V"][n][2][0:(meas_inp["Nt"])]) / 3,
-                                                               label='With Control', linewidth=2, linestyle='-')
-            Figure["ax_" + str(fig_n) + "_" + str(n + 1)].set_ylabel("$V_{}$".format(n) + "(V)", fontsize=18)
-            plt.sca(Figure["ax_" + str(fig_n) + "_" + str(n + 1)])
+        for nn in range((np.size(grid_inp["buses"], 0))):
+            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)] = Figure["fig_" + str(fig_n)].add_subplot(
+                np.size(grid_inp["buses"], 0), 1, nn + 1)
+            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].plot(x_lab,
+                                                                (meas["V"][nn][0][0:(meas_inp["Nt"])]
+                                                                 + meas["V"][nn][1][0:(meas_inp["Nt"])]
+                                                                 + meas["V"][nn][2][0:(meas_inp["Nt"])]) / 3,
+                                                                label='With Control', linewidth=2, linestyle='-')
+            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].set_ylabel("$V_{}$".format(nn) + "(V)", fontsize=18)
+            plt.sca(Figure["ax_" + str(fig_n) + "_" + str(nn + 1)])
             plt.xticks(x_tik, x_tik)
         Figure["ax_" + str(fig_n) + "_" + str(1)].set_title(title, fontsize=18)
-        Figure["ax_" + str(fig_n) + "_" + str(n + 1)].set_xlabel("time", fontsize=18)
+        Figure["ax_" + str(fig_n) + "_" + str(1)].set_xlabel("time", fontsize=18)
         if meas_inp["meas"] is True:
             for n in range(meas_inp["meas_number"]):
                 nn = find_n(meas_inp["meas_location"][n]["to"], grid_inp["buses"])
@@ -1068,7 +1070,7 @@ def figuring(grid_inp, meas_inp, meas, fig_type, title):
             plt.sca(Figure["ax_" + str(fig_n) + "_" + str(n + 1)])
             plt.xticks(x_tik, x_tik)
         Figure["ax_" + str(fig_n) + "_" + str(1)].set_title(title, fontsize=18)
-        Figure["ax_" + str(fig_n) + "_" + str(n + 1)].set_xlabel("time", fontsize=18)
+        Figure["ax_" + str(fig_n) + "_" + str(1)].set_xlabel("time", fontsize=18)
         if meas_inp["meas"] is True:
             for n in range(meas_inp["meas_number"]):
                 if meas_inp["meas_location"][n]["tran/line"] == "line":
@@ -1117,101 +1119,101 @@ def figuring(grid_inp, meas_inp, meas, fig_type, title):
 
 def cases_load_sim(Cases_Name, Scen_num):
     data = {}
-    l = 0
+    l_case = 0
     for case in Cases_Name:
-        data[l] = {}
-        data[l]['MonteCarlo_Scen'] = Scen_num
+        data[l_case] = {}
+        data[l_case]['MonteCarlo_Scen'] = Scen_num
         if case == 'Stochastic, $K=3$':
-            data[l]['Omega_Number'] = 3
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = False
+            data[l_case]['Omega_Number'] = 3
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = False
         elif case == 'Stochastic, $K=100$':
-            data[l]['Omega_Number'] = 20
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = False
+            data[l_case]['Omega_Number'] = 20
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = False
         elif case == 'Stochastic, $K=10$':
-            data[l]['Omega_Number'] = 100
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = False
+            data[l_case]['Omega_Number'] = 100
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = False
         elif case == 'Robust, $1-\epsilon=1.00$':
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = True
-            data[l]['Robust_prob'] = 0
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = True
+            data[l_case]['Robust_prob'] = 0
         elif case == 'Robust, $1-\epsilon=0.97$':
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = True
-            data[l]['Robust_prob'] = 0.03
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = True
+            data[l_case]['Robust_prob'] = 0.03
         elif case == 'Robust, $1-\epsilon=0.95$':
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = True
-            data[l]['Robust_prob'] = 0.05
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = True
+            data[l_case]['Robust_prob'] = 0.05
         elif case == 'Robust, $1-\epsilon=0.90$':
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = True
-            data[l]['Robust_prob'] = 0.1
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = True
+            data[l_case]['Robust_prob'] = 0.1
         elif case == 'Robust, $1-\epsilon=0.85$':
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = True
-            data[l]['Robust_prob'] = 0.15
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = True
+            data[l_case]['Robust_prob'] = 0.15
         elif case == 'Robust, $1-\epsilon=0.75$':
-            data[l]['LAMBDA_P_DA_EN'] = 100
-            data[l]['LAMBDA_Q_DA_EN'] = 0
-            data[l]['LAMBDA_P_DA_RS_pos'] = 10
-            data[l]['LAMBDA_P_DA_RS_neg'] = 10
-            data[l]['LAMBDA_Q_DA_RS_pos'] = 0
-            data[l]['LAMBDA_Q_DA_RS_neg'] = 0
-            data[l]['loss_consideration'] = 0
-            data[l]['Robust_Programming'] = True
-            data[l]['Robust_prob'] = 0.25
-        l = l + 1
+            data[l_case]['LAMBDA_P_DA_EN'] = 100
+            data[l_case]['LAMBDA_Q_DA_EN'] = 0
+            data[l_case]['LAMBDA_P_DA_RS_pos'] = 10
+            data[l_case]['LAMBDA_P_DA_RS_neg'] = 10
+            data[l_case]['LAMBDA_Q_DA_RS_pos'] = 0
+            data[l_case]['LAMBDA_Q_DA_RS_neg'] = 0
+            data[l_case]['loss_consideration'] = 0
+            data[l_case]['Robust_Programming'] = True
+            data[l_case]['Robust_prob'] = 0.25
+        l_case = l_case + 1
     return data
 
 
@@ -1229,3 +1231,9 @@ def find_n(bus_name, buses):
         else:
             nn += 1
     return nn
+
+
+def find_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx], idx
