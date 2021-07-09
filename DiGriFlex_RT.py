@@ -1,22 +1,22 @@
 """Revised on: 01.08.2021, @author: MYI, #Python version: 3.6.8 [32 bit]"""
 #### To Do lists:
 ## - CM#0: @DiGriFlex_DA, DiGriFlex_sim, Main_file
-## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (see function "reine_parameters()")
-## - CM#0: @AuxiliaryFunctions: Integrating with the dayahead forecasting code of Pasquale (see function "forecast_defining")
+## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (function "reine_parameters()")
+## - CM#0: @AuxiliaryFunctions: Integrating with the dayahead forecasting code of Pasquale ("forecast_defining")
 ## - CM#0: @AuxiliaryFunctions: reamined reviewing from functions "rt_simulation"
 ## - CM#0: @OptimizationFunctions: reamined reviewing from functions "rt_optimziation_digriflex"
 ## - CM#1: Day-ahead forecasting and opt -> First solution: without weather prediction; Second solution: MeteoSwiss API
 ## - CM#2: Real-time forecasting of loads
 ## - CM#3: Finding power output from the irradiance and temperature
 ## - CM#4: rt_optimization_function_digiriflex
-## - CM#5: running the test on lab computer and with labview
-
+## - CM#5: running the test with labview
+## - CM#6: testing the gurobipy licence
 
 #### Importing packages
 import os
 import sys
 import warnings
-import numpy as np
+# import numpy as np
 import pandas as pd
 import math
 import pickle
@@ -28,17 +28,15 @@ from datetime import datetime, timedelta
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 
-
 print(sys.version)
 
-
 #### Defining meta parameters
-dir_path = r"C:\Users\mohammad.rayati\Desktop\DiGriFlex"  # Defining directory path of the code
-# dir_path = r"C:\Users\labo-reine-iese\Desktop\20210601"
+# dir_path = r"C:\Users\mohammad.rayati\Desktop\DiGriFlex_Code"  # Defining directory path of the code
+dir_path = r"C:\Users\labo-reine-iese\Desktop\DiGriFlex_Code"
 network_name = "Case_4bus_DiGriFlex"  # Defining the network
 # network_name = "Case_LabVIEW"
-python64_path = r"C:\Users\mohammad.rayati\AppData\Local\Programs\Python\Python39\python.exe"  # Defining the directory path of pthon 64bit
-# python64_path =
+# python64_path = r"C:\Users\mohammad.rayati\AppData\Local\Programs\Python\Python39\python.exe"
+python64_path = r"C:\Users\labo-reine-iese\AppData\Local\Programs\Python\Python39\python.exe"
 N_boot0 = 300  # Desired number of bootstrap samples.
 mydb = mysql.connector.connect(host="10.192.48.47",
                                user="heigvd_meteo_ro",
@@ -53,11 +51,10 @@ RPP_SC, RPN_SC, RQP_SC, RQN_SC = [0.4] * 144, [0.4] * 144, [0.2] * 144, [0.2] * 
 
 #### Functions
 def interface_control_digriflex(Vec_Inp):
-    """" Not Completed: CM#3 and CM#4
-    This function is for intefacing with LabVIEW in DiGriFlex project
-    Input: Vec_Inp as ordered by Douglas in "07/10/2020 14:06" (See "\Data\Ordre_informations_controle_2020.10.07.xlsx")
-    Output: Vec_Out = [P Batt, Q Batt, P SolarMax, Q SolarMax, P_step ABB, Cos_phi ABB, P KACO, Q KACO, P Cinergia, Q Cinergia,
-                       P1 SOP, Q1 SOP, P2 SOP, Q2 SOP, P GM, Q GM]
+    """" Not Completed: CM#3 and CM#4 This function is for intefacing with LabVIEW in DiGriFlex project Input:
+    Vec_Inp as ordered by Douglas in "07/10/2020 14:06" (See \Data\Ordre_informations_controle_2020.10.07.xlsx)
+    Output: Vec_Out = [P Batt, Q Batt, P SolarMax, Q SolarMax, P_step ABB, Cos_phi ABB, P KACO, Q KACO, P Cinergia,
+    Q Cinergia, P1 SOP, Q1 SOP, P2 SOP, Q2 SOP, P GM, Q GM]
     """
     ## Reading inputs
     _, _, _, _, _, Charge_P, Charge_Q, Ond_P, Ond_Q, _, _, SOC = af.interface_meas(Vec_Inp)
@@ -65,7 +62,8 @@ def interface_control_digriflex(Vec_Inp):
     # ABB_P_m, ABB_Q_m = Ond_P[1], Ond_Q[1]
     ## Algorithm
     data_rt = access_data_rt()  # Instead, the following lines can be called for testing
-    pred_for = data_rt[["Irralag144_for", "Irralag2_for", "Irralag3_for", "Irralag4_for", "Irralag5_for", "Irralag6_for"]]
+    pred_for = data_rt[
+        ["Irralag144_for", "Irralag2_for", "Irralag3_for", "Irralag4_for", "Irralag5_for", "Irralag6_for"]]
     pred_for = pred_for[-1:]
     # pred_for = pd.read_csv(dir_path + r"\Data\pred_for.csv")
     # pred_for = pd.DataFrame(pred_for).set_index('Unnamed: 0')
@@ -94,7 +92,7 @@ def interface_control_digriflex(Vec_Inp):
               '\"import sys;' +
               'print(sys.version);' +
               'sys.path.insert(0, r\'' + dir_path + '\');'
-              'import pickle;' +
+                                                    'import pickle;' +
               'file_to_read = open(r\'' + dir_path + '\' + r\'/Data/tmp.pickle\', \'rb\');' +
               'grid_inp = pickle.load(file_to_read);' +
               'P_net = pickle.load(file_to_read);' +
@@ -194,6 +192,6 @@ def forecasting_pv_rt(pred_for, time_step, N_boot):
 
 
 #### TESTING
-Vec_Inp0 = open(dir_path + r"/Data/test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
+Vec_Inp0 = open(dir_path + r"\Data\test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
 Vec_Out0 = interface_control_digriflex(Vec_Inp0)
 print(Vec_Out0)
