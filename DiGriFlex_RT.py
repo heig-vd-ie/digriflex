@@ -1,11 +1,16 @@
 """Revised on: 01.08.2021, @author: MYI, #Python version: 3.6.8 [32 bit]"""
 #### To Do lists:
-## - CM#1: For the day-ahead -> First solution: without weather prediction; Second solution: MeteoSwiss API
-## - CM#2: We don't have the maximum active power in real-time (see function "forecasting_pv_rt()") real_time forecast
-## - CM#3: Edit interface_control function based on RT_optimization function using guroubi
-## - CM#4: Real-time forecasting of loads
-## - CM#5: Day_ahead forecasting of loads and PVs
-## - CM#6: Connecting this code with the output csv file of day-ahead scheduling
+## - CM#0: @DiGriFlex_DA, DiGriFlex_sim, Main_file
+## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (see function "reine_parameters()")
+## - CM#0: @AuxiliaryFunctions: Integrating with the dayahead forecasting code of Pasquale (see function "forecast_defining")
+## - CM#0: @AuxiliaryFunctions: reamined reviewing from functions "rt_simulation"
+## - CM#0: @OptimizationFunctions: reamined reviewing from functions "rt_optimziation_digriflex"
+## - CM#1: Day-ahead forecasting and opt -> First solution: without weather prediction; Second solution: MeteoSwiss API
+## - CM#2: Real-time forecasting of loads
+## - CM#3: Finding power output from the irradiance and temperature
+## - CM#4: rt_optimization_function_digiriflex
+## - CM#5: running the test on lab computer and with labview
+
 
 #### Importing packages
 import os
@@ -42,7 +47,7 @@ mydb = mysql.connector.connect(host="10.192.48.47",
                                database="heigvdch_meteo")  # Database for reading real-time data
 
 #### Temporary variables for dayahead scheduling (CM#5 and CM#6 and CM#1)
-P_SC, Q_SC = [2] * 144, [0] * 144
+P_SC, Q_SC = [7] * 144, [0] * 144
 RPP_SC, RPN_SC, RQP_SC, RQN_SC = [0.4] * 144, [0.4] * 144, [0.2] * 144, [0.2] * 144
 
 
@@ -59,16 +64,20 @@ def interface_control_digriflex(Vec_Inp):
     # Cinergia_P_m, Cinergia_Q_m = Charge_P[11], Charge_Q[11]
     # ABB_P_m, ABB_Q_m = Ond_P[1], Ond_Q[1]
     ## Algorithm
-    pred_for = access_pv_data_rt()  # Instead, the following lines can be called for testing
+    data_rt = access_data_rt()  # Instead, the following lines can be called for testing
+    pred_for = data_rt[["Irralag144_for", "Irralag2_for", "Irralag3_for", "Irralag4_for", "Irralag5_for", "Irralag6_for"]]
+    pred_for = pred_for[-1:]
     # pred_for = pd.read_csv(dir_path + r"\Data\pred_for.csv")
     # pred_for = pd.DataFrame(pred_for).set_index('Unnamed: 0')
     now = datetime.now()
     timestep = (now.hour - 1) * 6 + math.floor(now.minute / 10) + 2
-    result_p = forecasting_pv_rt(pred_for, timestep, N_boot0)
+    result_p, result_irra = forecasting_pv_rt(pred_for, timestep, N_boot0)
     ## For testing and saving data
     ####################################################################################
-    print("forecast:" + str(result_p[0] * 1000))
-    df = pd.DataFrame([[now, pred_for.index[-1], pred_for.iloc[-1]['Plag2_for'], result_p[0] * 1000]])
+    print(data_rt[["P", "irra", "Plag2_for", "Irralag2_for"]][-1:])
+    print("forecast_P, forecast_irra:" + str(round(result_p, 5)) + ', ' + str(round(result_irra, 2)))
+    df = pd.DataFrame([[now, pred_for.index[-1], data_rt.iloc[-1]['Plag2_for'], data_rt.iloc[-1]['Irralag2_for'],
+                        round(result_p, 5), round(result_irra, 2)]])
     df.to_csv(dir_path + r'\Data\recorded_forecast_pv.csv', mode='a', header=False)
     ####################################################################################
     grid_inp = af.grid_topology_sim(network_name, Vec_Inp)
@@ -78,7 +87,7 @@ def interface_control_digriflex(Vec_Inp):
     pickle.dump(grid_inp, file_to_store)
     pickle.dump(P_net, file_to_store)
     pickle.dump(Q_net, file_to_store)
-    pickle.dump(result_p[0], file_to_store)
+    pickle.dump(result_p, file_to_store)
     pickle.dump(SOC, file_to_store)
     file_to_store.close()
     os.system(python64_path + ' -c ' +
@@ -118,15 +127,18 @@ def interface_control_digriflex(Vec_Inp):
     return Vec_Out
 
 
-def access_pv_data_rt():
+def access_data_rt():
     """" Completed:
-    This function is for reading real-time data of PV ABB from the database of school
+    This function is for reading real-time data from the database of school
     Output:
-        - myresult: a dataframe with rows number equal to the real-time time step and four columns
-            -- [Plag2_for] = P_ABB with two lags
-            -- [Plag144_for] = P_ABB with 144 lags
-            -- [irralag2_for] = irradiation with two lags
-            -- [irralag2_for] = irradiation with 144 lags
+        - myresult: a dataframe with rows number equal to the real-time time step and the following columns
+            -- [Irralag144_for] = irradiation with 144 lags
+            -- [Irralag2_for] = irradiation with 2 lags
+            -- [Irralag3_for] = irradiation with 3 lags
+            -- [Irralag4_for] = irradiation with 4 lags
+            -- [Irralag5_for] = irradiation with 5 lags
+            -- [Irralag6_for] = irradiation with 6 lags
+            -- [Plag2_for] = P_ABB with 2 lags
     """
     mycursor = mydb.cursor()
     mycursor.execute(
@@ -136,48 +148,49 @@ def access_pv_data_rt():
     myresult = pd.DataFrame.from_records(myresult[-60 * 24 * 2:], columns=['Date and Time', 'P', 'irra'],
                                          index=['Date and Time'])
     myresult = myresult.resample('10min').mean()
-    myresult['Plag144_for'] = myresult['P'].shift(143)
+    myresult['Irralag2_for'] = myresult['irra'].shift(1)
+    myresult['Irralag3_for'] = myresult['irra'].shift(2)
+    myresult['Irralag4_for'] = myresult['irra'].shift(3)
+    myresult['Irralag5_for'] = myresult['irra'].shift(4)
+    myresult['Irralag6_for'] = myresult['irra'].shift(5)
+    myresult['Irralag144_for'] = myresult['irra'].shift(143)
     myresult['Plag2_for'] = myresult['P'].shift(1)
-    myresult['irralag144_for'] = myresult['irra'].shift(143)
-    myresult['irralag2_for'] = myresult['irra'].shift(1)
-    # print(myresult[['Plag144_for', 'Plag2_for', 'irralag144_for', 'irralag2_for']])
-    myresult = myresult[["Plag144_for", "Plag2_for", "irralag144_for", "irralag2_for"]]
     now = datetime.now()
     # timestep = (now.hour-1) * 6 + math.floor(now.minute / 10)
-    myresult = myresult[-1:]
     if datetime.strftime(myresult.index[-1], '%Y-%m-%d %H:%M') \
             < datetime.strftime(now - timedelta(hours=2), '%Y-%m-%d %H:%M'):
         warnings.warn("The recorded data is older than 2 hours.")
-    print(myresult)
     return myresult
 
 
 def forecasting_pv_rt(pred_for, time_step, N_boot):
-    """" Not Completed: CM#2
+    """" Completed:
     This function is for running the real-time forecasting R code written by Pasquale
     Inputs:
-        - pred_for: a dataframe containing predictors P(t-144),P(t-2),irra(t-144),irra(t-2)
+        - pred_for: a dataframe containing predictors irra(t-144),irra(t-2),irra(t-3),irra(t-4),irra(t-5),irra(t-6)
         - time_step: number of the target 10-min interval of the day.
         - N_boot: desired number of bootstrap samples.
-    Output: result_p: forecasted active power of ABB in kW
+    Output: result_irra: forecasted irradiance in W/m2
     """
     ## Training dataset
-    p_tra = pd.read_csv(dir_path + r"\Data\P_tra.csv")
-    pred_tra = pd.read_csv(dir_path + r"\Data\pred_tra.csv")
-    p_tra = p_tra['x']
-    pred_tra = pd.DataFrame(pred_tra).set_index('Unnamed: 0')
+    Irra_tra = pd.read_csv(dir_path + r"\Data\Irr_tra.csv")
+    pred_tra_irr = pd.read_csv(dir_path + r"\Data\pred_tra_irr.csv")
+    Irra_tra = Irra_tra['x']
+    pred_tra_irr = pd.DataFrame(pred_tra_irr).set_index('Unnamed: 0')
     ## Calling R function
     r = ro.r
-    r['source'](dir_path + r'\Functions_R\Function_LQR_Bayesboot.R')
+    r['source'](dir_path + r'\Functions_R\Function_LQR_Bayesboot_irra.R')
     LQR_Bayesboot = ro.globalenv['LQR_Bayesboot']
     with localconverter(ro.default_converter + pandas2ri.converter):
-        p_tra_r = ro.conversion.py2rpy(p_tra)
+        Irra_tra_r = ro.conversion.py2rpy(Irra_tra)
         pred_for_r = ro.conversion.py2rpy(pred_for)
-        pred_tra_r = ro.conversion.py2rpy(pred_tra)
-    result_p_r = LQR_Bayesboot(p_tra_r, pred_tra_r, pred_for_r, time_step, N_boot)
+        pred_tra_irr_r = ro.conversion.py2rpy(pred_tra_irr)
+    result_irr_r = LQR_Bayesboot(Irra_tra_r, pred_tra_irr_r, pred_for_r, time_step, N_boot)
     with localconverter(ro.default_converter + pandas2ri.converter):
-        result_p = ro.conversion.rpy2py(result_p_r)
-    return result_p
+        result_irra = ro.conversion.rpy2py(result_irr_r)
+    result_irra = result_irra[0]
+    result_p = (result_irra * 6.2 + 26) / 1000
+    return result_p, result_irra
 
 
 #### TESTING

@@ -1,8 +1,5 @@
 """Revised on: 01.08.2021, @author: MYI, #Python version: 3.6.8 [32 bit]"""
-##### To Do lists:
-## - CM#1: R and X of lines, efficiencies data of battery, X of PVs (see function "reine_parameters()")
-## - CM#2: Integrating with the dayahead forecasting code of Pasquale (see function "forecast_defining")
-## - reamined reviewing from functions "rt_simulation"
+
 
 #### Importing packages
 import numpy as np
@@ -75,7 +72,7 @@ def reine_parameters():
                                  / (1000 * parameters['Ond_Cap'][x]) for x in range(3)]
     # Con = [Battery]
     parameters['Con_SOC_min_kWh'] = [0]
-    parameters['Con_SOC_max_kWh'] = [62]
+    parameters['Con_SOC_max_kWh'] = [64]
     parameters['Con_S_max_kVA'] = [120]
     parameters['Con_P_max_kW'] = [100]
     parameters['Con_Eff_LV'] = [1]

@@ -1,7 +1,4 @@
-"""Revised on: 01.08.2020, @author: MYI, #Python version: 3.9.6 [64 bit]"""
-#### To Do lists:
-## - CM#1: - rt_optimization_function_digiriflex
-## - reamined reviewing from functions "rt_optimziation_digriflex"
+"""Revised on: 01.08.2021, @author: MYI, #Python version: 3.9.6 [64 bit]"""
 
 
 import os
@@ -40,10 +37,15 @@ def rt_following_digriflex(grid_inp, P_net, Q_net, pv_forecast, SOC_battery):
         Battery_P_sp = Battery_P_cap_n
         ABB_P_sp, _ = af.find_nearest(ABB_steps, (P_net - Battery_P_sp) * 100 / ABB_P_cap)
     ABB_P_exp = min([pv_forecast, ABB_P_sp * ABB_P_cap / 100])
-    ABB_c_sp, _ = af.find_nearest([-0.89, 0.89], Q_net / np.abs(Q_net))
-    Battery_Q_sp = max([min([Q_net - ABB_P_exp * np.tan(np.arccos(ABB_c_sp)), Battery_Q_cap]), -Battery_Q_cap])
+    ABB_Q_max = ABB_P_exp * np.tan(np.arccos(0.89))
+    if ABB_Q_max >= Q_net >= - ABB_Q_max:
+        ABB_c_sp = - np.cos(np.arctan(Q_net)) * np.sign(Q_net)
+    else:
+        ABB_c_sp, _ = af.find_nearest([-0.89, 0.89], Q_net / np.abs(Q_net))
+        ABB_c_sp = - ABB_c_sp  # minus sign because cos<0 is capacitive based on datasheet
+    Battery_Q_sp = max([min([Q_net - ABB_P_exp * np.tan(np.arccos(-ABB_c_sp)), Battery_Q_cap]), -Battery_Q_cap])
     _, ABB_P_sp = af.find_nearest(ABB_steps, ABB_P_sp)
-    return ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp
+    return round(ABB_P_sp, 2), round(ABB_c_sp, 2), round(Battery_P_sp, 2), round(Battery_Q_sp, 2)
 
 
 def rt_optimziation_digriflex(rt_meas_inp, meas_inp, grid_inp, DA_result):
