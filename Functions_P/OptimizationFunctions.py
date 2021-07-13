@@ -1,14 +1,9 @@
 """Revised on: 01.08.2021, @author: MYI, #Python version: 3.9.6 [64 bit]"""
 
-# import os
-# import sys
 import numpy as np
-# import scipy.io as sio
-# import matplotlib.pyplot as plt
-# import gurobipy as gp
+import gurobipy as gp
 import itertools
 import Functions_P.AuxiliaryFunctions as af
-# from random import gauss
 from scipy.stats import norm
 from gurobipy import *
 
@@ -16,49 +11,113 @@ from gurobipy import *
 # from pydgrid import grid
 
 
-def rt_following_digriflex(grid_inp, P_net, Q_net, pv_forecast, SOC_battery):
+def rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC):
     """" Completed:
     A simple function for testing the control commands
-    Outputs: BB_P_sp, Battery_P_sp, Battery_Q_sp
+    Outputs: ABB_P_sp, ABB_c_sp, battery_P_sp, battery_Q_sp
     """
+    forecast_P = forecast_pv - forecast_dm[0]
+    forecast_Q = - forecast_dm[1]
     ABB_P_cap = grid_inp["PV_elements"][0]["cap_kVA_perPhase"] * 3
     ABB_steps = [0, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-    Battery_P_cap_p = min([grid_inp["storage_elements"][0]["P_max_kW"],
-                           (grid_inp["storage_elements"][0]["SOC_max_kWh"]
-                            - SOC_battery * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
-    Battery_P_cap_n = max([-grid_inp["storage_elements"][0]["P_max_kW"],
-                           (grid_inp["storage_elements"][0]["SOC_min_kWh"]
-                            - SOC_battery * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
-    Battery_Q_cap = np.sqrt(grid_inp["storage_elements"][0]["S_max_kVA"] ** 2 -
-                            max([Battery_P_cap_p, - Battery_P_cap_n]) ** 2)
-    if P_net - pv_forecast >= Battery_P_cap_n:
-        Battery_P_sp = min([P_net - pv_forecast, Battery_P_cap_p])
+    battery_P_cap_pos = min([grid_inp["storage_elements"][0]["P_max_kW"],
+                             (grid_inp["storage_elements"][0]["SOC_max_kWh"]
+                             - SOC * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
+    battery_P_cap_neg = max([-grid_inp["storage_elements"][0]["P_max_kW"],
+                             (grid_inp["storage_elements"][0]["SOC_min_kWh"]
+                             - SOC * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
+    battery_Q_cap = np.sqrt(grid_inp["storage_elements"][0]["S_max_kVA"] ** 2 -
+                            max([battery_P_cap_pos, - battery_P_cap_neg]) ** 2)
+    if forecast_P - P_net <= battery_P_cap_pos:
+        battery_P_sp = max([forecast_P - P_net, battery_P_cap_neg])
         ABB_P_sp = 100
     else:
-        Battery_P_sp = Battery_P_cap_n
-        ABB_P_sp, _ = af.find_nearest(ABB_steps, (P_net - Battery_P_sp) * 100 / ABB_P_cap)
-    ABB_P_exp = min([pv_forecast, ABB_P_sp * ABB_P_cap / 100])
+        battery_P_sp = battery_P_cap_pos
+        ABB_P_sp, _ = af.find_nearest(ABB_steps, (battery_P_sp + P_net + forecast_dm[0]) * 100 / ABB_P_cap)
+    ABB_P_exp = min([forecast_pv, ABB_P_sp * ABB_P_cap / 100])
+    battery_Q_sp = max([min([forecast_Q - Q_net, battery_Q_cap]), - battery_Q_cap])
     ABB_Q_max = ABB_P_exp * np.tan(np.arccos(0.89))
-    if ABB_Q_max >= Q_net >= - ABB_Q_max:
-        ABB_c_sp = - np.cos(np.arctan(Q_net)) * np.sign(Q_net)
+    if - ABB_Q_max <= Q_net + battery_Q_sp - forecast_Q <= ABB_Q_max:
+        ABB_c_sp = - np.cos(np.arctan(Q_net + battery_Q_sp - forecast_Q)) \
+                   * np.sign(Q_net + battery_Q_sp - forecast_Q - np.finfo(float).eps)
     else:
-        ABB_c_sp, _ = af.find_nearest([-0.89, 0.89], Q_net / np.abs(Q_net))
-        ABB_c_sp = - ABB_c_sp  # minus sign because cos<0 is capacitive based on datasheet
-    Battery_Q_sp = max([min([Q_net - ABB_P_exp * np.tan(np.arccos(-ABB_c_sp)), Battery_Q_cap]), -Battery_Q_cap])
+        ABB_c_sp, _ = af.find_nearest([-0.89, 0.89], np.sign(Q_net + battery_Q_sp - forecast_Q - np.finfo(float).eps))
+        ABB_c_sp = - ABB_c_sp  # Because cos<0 = capacitive based on datasheet
     _, ABB_P_sp = af.find_nearest(ABB_steps, ABB_P_sp)
-    return round(ABB_P_sp, 2), round(ABB_c_sp, 2), round(Battery_P_sp, 2), round(Battery_Q_sp, 2)
+    return ABB_P_sp, round(ABB_c_sp, 3), round(battery_P_sp, 3), round(battery_Q_sp, 3)
 
 
-def rt_optimziation_digriflex(rt_meas_inp, meas_inp, grid_inp, DA_result):
-    """" Not Completed:
+def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SOC_battery, SOC_desired, prices_vec):
+    """" Completed:
     ...
-    Inputs:
-    Outputs:
+    Inputs: prices_vec = [loss_coef, battery_coef, pv_coef, dev_coef]
+    Outputs: ABB_P_sp, ABB_c_sp, battery_P_sp, battery_Q_sp
+    """
+    rt_meas_inp = {}
+    meas_inp = {}
+    rt_meas_inp["delta"] = 0.001
+    rt_meas_inp["Loss_Coeff"] = prices_vec[0]
+    rt_meas_inp["ST_Coeff"] = prices_vec[1]
+    rt_meas_inp["PV_Coeff"] = prices_vec[2]
+    rt_meas_inp["dev_Coeff"] = prices_vec[3]
+    meas_inp["DeltaT"] = 10
+    ABB_steps = [0, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    meas_inp["meas_location"] = [{"from": "1", "to": "3", "tran/line": "line"}]
+    rt_meas_inp["DM_P"] = {0: forecast_dm[0]}
+    rt_meas_inp["DM_Q"] = {0: forecast_dm[1]}
+    rt_meas_inp["P_PV"] = forecast_pv / grid_inp["PV_elements"][0]["cap_kVA_perPhase"]
+    rt_meas_inp["ST_SOC_t_1"] = {0: SOC_battery}
+    rt_meas_inp["ST_SOC_des"] = {0: SOC_desired}
+    rt_meas_inp["Vmag"] = {0: V_mag / 400}
+    rt_meas_inp["fac_P_pos"] = {0: 0}
+    rt_meas_inp["fac_P_neg"] = {0: 0}
+    rt_meas_inp["fac_Q_pos"] = {0: 0}
+    rt_meas_inp["fac_Q_neg"] = {0: 0}
+    rt_meas_inp["ConPoint_P_DA_EN"] = {0: - P_net}
+    rt_meas_inp["ConPoint_Q_DA_EN"] = {0: - Q_net}
+    rt_meas_inp["ConPoint_P_DA_RS_pos"] = {0: 0}
+    rt_meas_inp["ConPoint_P_DA_RS_neg"] = {0: 0}
+    rt_meas_inp["ConPoint_Q_DA_RS_pos"] = {0: 0}
+    rt_meas_inp["ConPoint_Q_DA_RS_neg"] = {0: 0}
+    DA_result = {}
+    DA_result, _ = RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result)
+    if not DA_result["time_out"]:
+        ABB_P_sp = DA_result["Solution_PV_P"]
+        ABB_Q_sp = DA_result["Solution_PV_Q"]
+        Battery_P_sp = DA_result["Solution_ST_P"]
+        Battery_Q_sp = DA_result["Solution_ST_Q"]
+        ABB_P_sp = round(ABB_P_sp[0], 3)
+        ABB_Q_sp = round(ABB_Q_sp[0], 3)
+        Battery_P_sp = - round(Battery_P_sp[0], 3)
+        Battery_Q_sp = - round(Battery_Q_sp[0], 3)
+        print(f'Success, {ABB_P_sp}, {ABB_Q_sp}, {Battery_P_sp}, {Battery_Q_sp}')
+        ABB_P_exp = ABB_P_sp
+        ABB_Q_max = ABB_P_exp * np.tan(np.arccos(0.89))
+        if - ABB_Q_max <= ABB_Q_sp <= ABB_Q_max:
+            ABB_c_sp = - np.cos(np.arctan(ABB_Q_sp)) * np.sign(ABB_Q_sp - np.finfo(float).eps)
+        else:
+            ABB_c_sp, _ = - af.find_nearest([-0.89, 0.89], np.sign(ABB_Q_sp - np.finfo(float).eps))
+        ABB_P_cap = grid_inp["PV_elements"][0]["cap_kVA_perPhase"] * 3
+        ABB_P_sp = ABB_P_sp * 100 / ABB_P_cap
+        if ABB_P_exp > forecast_pv - 0.1:
+            ABB_P_sp = 100
+        _, ABB_P_sp = af.find_nearest(ABB_steps, ABB_P_sp)
+    else:
+        ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp = rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC_battery)
+    return ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp
+
+
+def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
+    """" Completed:
+    ...
+    Inputs: rt_meas_inp, meas_inp, grid_inp, DA_result
+    Outputs: DA_result, dres
     """
     Big_M = 1e6
     l1 = rt_meas_inp["Loss_Coeff"]
     l2 = rt_meas_inp["ST_Coeff"]
-    l3 = rt_meas_inp["dev_Coeff"]
+    l3 = rt_meas_inp["PV_Coeff"]
+    l4 = rt_meas_inp["dev_Coeff"]
     DeltaT = meas_inp["DeltaT"]
     Node_Set = range(grid_inp["Nbus"])
     #### Min and Max of Voltage (Hard Constraints)
@@ -120,6 +179,7 @@ def rt_optimziation_digriflex(rt_meas_inp, meas_inp, grid_inp, DA_result):
     PV_V_grid = np.zeros(np.size(grid_inp["PV_elements"], 0))
     PV_V_conv = np.zeros(np.size(grid_inp["PV_elements"], 0))
     PV_X = np.zeros(np.size(grid_inp["PV_elements"], 0))
+    PV_cos = np.zeros(np.size(grid_inp["PV_elements"], 0))
     PV_Forecast = np.zeros((np.size(grid_inp["PV_elements"], 0)))
     for nn in grid_inp["PV_elements"]:
         PV_Inc_Mat[nn["index"], af.find_n(nn["bus"], grid_inp["buses"])] = 1
@@ -127,6 +187,7 @@ def rt_optimziation_digriflex(rt_meas_inp, meas_inp, grid_inp, DA_result):
         PV_V_grid[nn["index"]] = nn["V_grid_pu"]
         PV_V_conv[nn["index"]] = nn["V_conv_pu"]
         PV_X[nn["index"]] = nn["X_PV_pu"]
+        PV_cos[nn["index"]] = nn["cos_PV"]
         PV_Forecast[nn["index"]] = rt_meas_inp["P_PV"] * nn["cap_kVA_perPhase"]
     print("- PV data is generated for optimization.")
     ### Storages Parameters
@@ -387,11 +448,13 @@ def rt_optimziation_digriflex(rt_meas_inp, meas_inp, grid_inp, DA_result):
         # (28)
         PROB_RT.addConstr(PV_P[i] <= PV_Forecast[i])
         # (26)
-        PROB_RT.addConstr(PV_P[i] * PV_P[i]
-                          + (PV_Q[i] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                          * (PV_Q[i] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                          <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
-                          * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
+        PROB_RT.addConstr(PV_Q[i] <= PV_P[i] * np.tan(np.arccos(PV_cos[i])))
+        PROB_RT.addConstr(PV_Q[i] >= - PV_P[i] * np.tan(np.arccos(PV_cos[i])))
+        # PROB_RT.addConstr(PV_P[i] * PV_P[i]
+        #                   + (PV_Q[i] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+        #                   * (PV_Q[i] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+        #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
+        #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
         # (27)
         PROB_RT.addConstr(PV_P[i] * PV_P[i] + PV_Q[i] * PV_Q[i] <= PV_cap[i] * PV_cap[i])
         # PROB_RT.addConstr(PV_Q[i] == 0)
@@ -401,7 +464,8 @@ def rt_optimziation_digriflex(rt_meas_inp, meas_inp, grid_inp, DA_result):
         # first line of (34a)
         PROB_RT.addConstr(OBJ_RT_MARKET[f] >= l1 * sum(Line_Zre[n1, n2] * Line_f[n1, n2] for n1, n2 in Line_Set)
                           + l2 * sum(ST_SOC_dev_pos[s] + ST_SOC_dev_neg[s] for s in ST_Set)
-                          + l3 * (ConPoint_P_dev_pos[f] + ConPoint_P_dev_neg[f]
+                          + l3 * sum(PV_Forecast[p] - PV_P[p] for p in PV_Set)
+                          + l4 * (ConPoint_P_dev_pos[f] + ConPoint_P_dev_neg[f]
                                   + ConPoint_Q_dev_pos[f] + ConPoint_Q_dev_neg[f]))
         # constraints for defining deployed reserves
         PROB_RT.addConstr(ConPoint_P[f] == ConPoint_P_DA_EN[f]
@@ -421,10 +485,15 @@ def rt_optimziation_digriflex(rt_meas_inp, meas_inp, grid_inp, DA_result):
     PROB_RT.optimize()
     ### Solution
     try:
-        # Solution_PV_P = PROB_RT.getAttr('x', PV_P)
-        # Solution_PV_Q = PROB_RT.getAttr('x', PV_Q)
-        # Solution_ST_P = PROB_RT.getAttr('x', ST_P)
-        # Solution_ST_Q = PROB_RT.getAttr('x', ST_Q)
+        print(PROB_RT.getAttr('x', Line_P_t))
+        print(PROB_RT.getAttr('x', Line_Q_t))
+        print(PROB_RT.getAttr('x', Net_P))
+        print(PROB_RT.getAttr('x', Net_Q))
+        print(PROB_RT.getAttr('x', Line_f))
+        Solution_PV_P = PROB_RT.getAttr('x', PV_P)
+        Solution_PV_Q = PROB_RT.getAttr('x', PV_Q)
+        Solution_ST_P = PROB_RT.getAttr('x', ST_P)
+        Solution_ST_Q = PROB_RT.getAttr('x', ST_Q)
         Solution_ST_SOC = PROB_RT.getAttr('x', ST_SOC)
         # Solution_ST_SOC2 = PROB_RT.getAttr('x', ST_SOC_tilde)
         Solution_P_dev_pos = PROB_RT.getAttr('x', ConPoint_P_dev_pos)
@@ -433,10 +502,16 @@ def rt_optimziation_digriflex(rt_meas_inp, meas_inp, grid_inp, DA_result):
         Solution_Q_dev_neg = PROB_RT.getAttr('x', ConPoint_P_dev_neg)
         Solution_ST_SOCC = [Solution_ST_SOC[s] for s in ST_Set]
         DA_result["Solution_ST_SOC_RT"] = Solution_ST_SOCC
+        DA_result["Solution_PV_P"] = Solution_PV_P
+        DA_result["Solution_PV_Q"] = Solution_PV_Q
+        DA_result["Solution_ST_P"] = Solution_ST_P
+        DA_result["Solution_ST_Q"] = Solution_ST_Q
         dres = (Solution_P_dev_pos[0] + Solution_P_dev_neg[0] + Solution_Q_dev_pos[0] + Solution_Q_dev_neg[0] >
                 rt_meas_inp["delta"])
+        DA_result["time_out"] = False
     except:
         DA_result["Solution_ST_SOC_RT"] = ST_SOC_t_1
+        DA_result["time_out"] = True
         dres = 1
     return DA_result, dres
 
@@ -893,11 +968,13 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
             # (26)
             PROB_DA.addConstr(PV_P[i, t] <= PV_Forecast[i, t])
             # (24)
-            PROB_DA.addConstr(PV_P[i, t] * PV_P[i, t]
-                              + (PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                              * (PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                              <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
-                              * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
+            PROB_RT.addConstr(PV_Q[i, t] <= PV_P[i, t] * np.tan(np.arccos(PV_cos[i])))
+            PROB_RT.addConstr(PV_Q[i, t] >= - PV_P[i, t] * np.tan(np.arccos(PV_cos[i])))
+            # PROB_DA.addConstr(PV_P[i, t] * PV_P[i, t]
+            #                   + (PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+            #                   * (PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+            #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
+            #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
             # (25)
             PROB_DA.addConstr(PV_P[i, t] * PV_P[i, t] + PV_Q[i, t] * PV_Q[i, t] <= PV_cap[i] * PV_cap[i])
         for f in ConPoint_Set:
@@ -1029,16 +1106,20 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
             PROB_DA.addConstr(max_PV_Q[i, t] == PV_Q[i, t] + alfa_PV_Q_p[i, t])
             PROB_DA.addConstr(min_PV_Q[i, t] == PV_Q[i, t] - alfa_PV_Q_n[i, t])
             PROB_DA.addConstr(max_PV_P[i, t] <= PV_Forecast[i, t] + zeta_p_PV[i, t])
-            PROB_DA.addConstr(max_PV_P[i, t] * max_PV_P[i, t]
-                              + (max_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                              * (max_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                              <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
-                              * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
-            PROB_DA.addConstr(max_PV_P[i, t] * max_PV_P[i, t]
-                              + (min_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                              * (min_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                              <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
-                              * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
+            PROB_RT.addConstr(max_PV_Q[i, t] <= max_PV_P[i, t] * np.tan(np.arccos(PV_cos[i])))
+            PROB_RT.addConstr(max_PV_Q[i, t] >= - max_PV_P[i, t] * np.tan(np.arccos(PV_cos[i])))
+            PROB_RT.addConstr(min_PV_Q[i, t] <= max_PV_P[i, t] * np.tan(np.arccos(PV_cos[i])))
+            PROB_RT.addConstr(min_PV_Q[i, t] >= - max_PV_P[i, t] * np.tan(np.arccos(PV_cos[i])))
+            # PROB_DA.addConstr(max_PV_P[i, t] * max_PV_P[i, t]
+            #                   + (max_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+            #                   * (max_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+            #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
+            #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
+            # PROB_DA.addConstr(max_PV_P[i, t] * max_PV_P[i, t]
+            #                   + (min_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+            #                   * (min_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+            #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
+            #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
             PROB_DA.addConstr(
                 max_PV_P[i, t] * max_PV_P[i, t] + max_PV_Q[i, t] * max_PV_Q[i, t] <= PV_cap[i] * PV_cap[i])
             PROB_DA.addConstr(
@@ -1565,11 +1646,13 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
             # (28)
             PROB_DA.addConstr(PV_P[i, t, om] <= PV_Forecast[i, t, om])
             # (26)
-            PROB_DA.addConstr(PV_P[i, t, om] * PV_P[i, t, om]
-                              + (PV_Q[i, t, om] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                              * (PV_Q[i, t, om] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                              <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
-                              * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
+            PROB_RT.addConstr(PV_Q[i, t, om] <= PV_P[i, t, om] * np.tan(np.arccos(PV_cos[i])))
+            PROB_RT.addConstr(PV_Q[i, t, om] >= - PV_P[i, t, om] * np.tan(np.arccos(PV_cos[i])))
+            # PROB_DA.addConstr(PV_P[i, t, om] * PV_P[i, t, om]
+            #                   + (PV_Q[i, t, om] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+            #                   * (PV_Q[i, t, om] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
+            #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
+            #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
             # (27)
             PROB_DA.addConstr(
                 PV_P[i, t, om] * PV_P[i, t, om] + PV_Q[i, t, om] * PV_Q[i, t, om] <= PV_cap[i] * PV_cap[i])
@@ -1681,390 +1764,3 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
     output_DF.loc['DA_RQ_pos_avg', case_name] = sum(DA_RQQ_pos) / len(DA_RQQ_pos)
     output_DF.loc['DA_RQ_neg_avg', case_name] = sum(DA_RQQ_neg) / len(DA_RQQ_neg)
     return DA_result, output_DF
-
-
-def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
-    Big_M = 1e6
-    l1 = rt_meas_inp["Loss_Coeff"]
-    l2 = rt_meas_inp["ST_Coeff"]
-    l3 = rt_meas_inp["dev_Coeff"]
-    DeltaT = meas_inp["DeltaT"]
-    Node_Set = range(grid_inp["Nbus"])
-    #### Min and Max of Voltage (Hard Constraints)
-    V_max = []
-    V_min = []
-    for nn in grid_inp["buses"]:
-        V_min.append(nn["Vmin"])
-        V_max.append(nn["Vmax"])
-    #### Trans_Set
-    Line_Set = []
-    Line_Smax = np.zeros((grid_inp["Nbus"], grid_inp["Nbus"]))
-    Line_Vbase = np.zeros((grid_inp["Nbus"], grid_inp["Nbus"]))
-    Line_Zre = np.zeros((grid_inp["Nbus"], grid_inp["Nbus"]))
-    Line_Zim = np.zeros((grid_inp["Nbus"], grid_inp["Nbus"]))
-    Line_b = np.zeros((grid_inp["Nbus"], grid_inp["Nbus"]))
-    for nn in grid_inp["transformers"]:
-        Line_Set.append(tuple((af.find_n(nn["bus_j"], grid_inp["buses"]),
-                               af.find_n(nn["bus_k"], grid_inp["buses"]))))
-        Line_Smax[af.find_n(nn["bus_j"], grid_inp["buses"]),
-                  af.find_n(nn["bus_k"], grid_inp["buses"])] = nn["Cap"]
-        Line_Vbase[af.find_n(nn["bus_j"], grid_inp["buses"]),
-                   af.find_n(nn["bus_k"], grid_inp["buses"])] = grid_inp["buses"][af.find_n(nn["bus_k"],
-                                                                                            grid_inp["buses"])]["U_kV"]
-        Line_Zre[af.find_n(nn["bus_j"], grid_inp["buses"]),
-                 af.find_n(nn["bus_k"], grid_inp["buses"])] = nn["R_cc_pu"] * grid_inp["Zbase"]
-        Line_Zim[af.find_n(nn["bus_j"], grid_inp["buses"]),
-                 af.find_n(nn["bus_k"], grid_inp["buses"])] = nn["X_cc_pu"] * grid_inp["Zbase"]
-    #### Line_Set
-    for nn in grid_inp["lines"]:
-        Line_Set.append(tuple((af.find_n(nn["bus_j"], grid_inp["buses"]),
-                               af.find_n(nn["bus_k"], grid_inp["buses"]))))
-        Line_Smax[af.find_n(nn["bus_j"], grid_inp["buses"]),
-                  af.find_n(nn["bus_k"], grid_inp["buses"])] = nn["Cap"]
-        Line_Vbase[af.find_n(nn["bus_j"], grid_inp["buses"]),
-                   af.find_n(nn["bus_k"], grid_inp["buses"])] = grid_inp["buses"][af.find_n(nn["bus_k"],
-                                                                                            grid_inp["buses"])]["U_kV"]
-        Line_Zre[af.find_n(nn["bus_j"], grid_inp["buses"]),
-                 af.find_n(nn["bus_k"], grid_inp["buses"])] = grid_inp["line_codes"][nn["code"]]["R1"] * nn["m"] / 1000
-        Line_Zim[af.find_n(nn["bus_j"], grid_inp["buses"]),
-                 af.find_n(nn["bus_k"], grid_inp["buses"])] = grid_inp["line_codes"][nn["code"]]["X1"] * nn["m"] / 1000
-        Line_b[af.find_n(nn["bus_j"], grid_inp["buses"]),
-               af.find_n(nn["bus_k"], grid_inp["buses"])] = grid_inp["line_codes"][nn["code"]]["B_1_mu"] * nn[
-            "m"] / 2000
-    ### DEMANDs Parameters
-    DM_Set = range(np.size(grid_inp["load_elements"], 0))
-    DM_Inc_Mat = np.zeros((np.size(grid_inp["load_elements"], 0), grid_inp["Nbus"]))
-    DM_P = np.zeros((np.size(grid_inp["load_elements"], 0)))
-    DM_Q = np.zeros((np.size(grid_inp["load_elements"], 0)))
-    for nn in grid_inp["load_elements"]:
-        DM_Inc_Mat[nn["index"], af.find_n(nn["bus"], grid_inp["buses"])] = 1
-        nnn = af.find_n(nn["bus"], meas_inp["meas_location"])
-        DM_P[nn["index"]] = rt_meas_inp["DM_P"][nnn]
-        DM_Q[nn["index"]] = rt_meas_inp["DM_Q"][nnn]
-    print("- Demand data is generated for optimization.")
-    ### PV Systems Parameters
-    PV_Set = range(np.size(grid_inp["PV_elements"], 0))
-    PV_Inc_Mat = np.zeros((np.size(grid_inp["PV_elements"], 0), grid_inp["Nbus"]))
-    PV_cap = np.zeros((np.size(grid_inp["PV_elements"], 0)))
-    PV_V_grid = np.zeros(np.size(grid_inp["PV_elements"], 0))
-    PV_V_conv = np.zeros(np.size(grid_inp["PV_elements"], 0))
-    PV_X = np.zeros(np.size(grid_inp["PV_elements"], 0))
-    PV_Forecast = np.zeros((np.size(grid_inp["PV_elements"], 0)))
-    for nn in grid_inp["PV_elements"]:
-        PV_Inc_Mat[nn["index"], af.find_n(nn["bus"], grid_inp["buses"])] = 1
-        PV_cap[nn["index"]] = nn["cap_kVA_perPhase"]
-        PV_V_grid[nn["index"]] = nn["V_grid_pu"]
-        PV_V_conv[nn["index"]] = nn["V_conv_pu"]
-        PV_X[nn["index"]] = nn["X_PV_pu"]
-        PV_Forecast[nn["index"]] = rt_meas_inp["P_PV"] * nn["cap_kVA_perPhase"]
-    print("- PV data is generated for optimization.")
-    ### Storages Parameters
-    ST_Set = range(np.size(grid_inp["storage_elements"], 0))
-    ST_Inc_Mat = np.zeros((np.size(grid_inp["storage_elements"], 0), grid_inp["Nbus"]))
-    ST_S_max = np.zeros(np.size(grid_inp["storage_elements"], 0))
-    ST_SOC_max = np.zeros(np.size(grid_inp["storage_elements"], 0))
-    ST_SOC_min = np.zeros(np.size(grid_inp["storage_elements"], 0))
-    ST_Eff_LV = np.zeros(np.size(grid_inp["storage_elements"], 0))
-    ST_Eff_pos = np.zeros(np.size(grid_inp["storage_elements"], 0))
-    ST_Eff_neg = np.zeros(np.size(grid_inp["storage_elements"], 0))
-    ST_Eff_LC = np.zeros(np.size(grid_inp["storage_elements"], 0))
-    ST_SOC_t_1 = np.zeros((np.size(grid_inp["storage_elements"], 0)))
-    ST_SOC_des = np.zeros((np.size(grid_inp["storage_elements"], 0)))
-    for s, nn in enumerate(grid_inp["storage_elements"]):
-        ST_Inc_Mat[nn["index"], af.find_n(nn["bus"], grid_inp["buses"])] = 1
-        ST_S_max[nn["index"]] = nn["S_max_kVA"]
-        ST_SOC_max[nn["index"]] = nn["SOC_max_kWh"]
-        ST_SOC_min[nn["index"]] = nn["SOC_min_kWh"]
-        ST_Eff_LV[nn["index"]] = nn["Eff_LV"]
-        ST_Eff_pos[nn["index"]] = nn["Eff_C"]
-        ST_Eff_neg[nn["index"]] = nn["Eff_D"]
-        ST_Eff_LC[nn["index"]] = nn["Eff_LC"]
-        ST_SOC_t_1[nn["index"]] = rt_meas_inp["ST_SOC_t_1"][s]
-        ST_SOC_des[nn["index"]] = rt_meas_inp["ST_SOC_des"][s]
-    print("- Storage data is generated for optimization.")
-    ### Transmission System and Cost Function Parameters
-    ConPoint_Set = range(np.size(grid_inp["grid_formers"], 0))
-    ConPoint_Inc_Mat = np.zeros((np.size(grid_inp["grid_formers"], 0), grid_inp["Nbus"]))
-    ConPoint_fac_P_pos = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_fac_P_neg = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_fac_Q_pos = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_fac_Q_neg = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_Vmag = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_P_DA_EN = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_Q_DA_EN = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_P_DA_RS_pos = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_P_DA_RS_neg = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_Q_DA_RS_pos = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    ConPoint_Q_DA_RS_neg = np.zeros((np.size(grid_inp["grid_formers"], 0)))
-    for nn in grid_inp["grid_formers"]:
-        ConPoint_Inc_Mat[nn["index"], af.find_n(nn["bus"], grid_inp["buses"])] = 1
-        ConPoint_Vmag[nn["index"]] = rt_meas_inp["Vmag"][nn["index"]]
-        ConPoint_fac_P_pos[nn["index"]] = rt_meas_inp["fac_P_pos"][nn["index"]]
-        ConPoint_fac_P_neg[nn["index"]] = rt_meas_inp["fac_P_neg"][nn["index"]]
-        ConPoint_fac_Q_pos[nn["index"]] = rt_meas_inp["fac_Q_pos"][nn["index"]]
-        ConPoint_fac_Q_neg[nn["index"]] = rt_meas_inp["fac_Q_neg"][nn["index"]]
-        ConPoint_P_DA_EN[nn["index"]] = rt_meas_inp["ConPoint_P_DA_EN"][nn["index"]]
-        ConPoint_Q_DA_EN[nn["index"]] = rt_meas_inp["ConPoint_Q_DA_EN"][nn["index"]]
-        ConPoint_P_DA_RS_pos[nn["index"]] = rt_meas_inp["ConPoint_P_DA_RS_pos"][nn["index"]]
-        ConPoint_P_DA_RS_neg[nn["index"]] = rt_meas_inp["ConPoint_P_DA_RS_neg"][nn["index"]]
-        ConPoint_Q_DA_RS_pos[nn["index"]] = rt_meas_inp["ConPoint_Q_DA_RS_pos"][nn["index"]]
-        ConPoint_Q_DA_RS_neg[nn["index"]] = rt_meas_inp["ConPoint_Q_DA_RS_neg"][nn["index"]]
-    print("- Connection point data is generated for optimization.")
-    ### Defining Variables
-    PROB_RT = Model("PROB_RT")
-    Line_P_t = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_Q_t = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_P_b = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_Q_b = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_f = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Vmag_sq = PROB_RT.addVars(Node_Set, lb=-Big_M, ub=Big_M)
-    Line_P_t_hat = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_Q_t_hat = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_P_b_hat = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_Q_b_hat = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    # Line_f_hat = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_P_t_over = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_Q_t_over = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_P_b_over = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_Q_b_over = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_f_over = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Vmag_sq_over = PROB_RT.addVars(Node_Set, lb=-Big_M, ub=Big_M)
-    Line_P_t_sq_max = PROB_RT.addVars(Line_Set, lb=0, ub=Big_M)
-    Line_Q_t_sq_max = PROB_RT.addVars(Line_Set, lb=0, ub=Big_M)
-    Line_P_b_sq_max = PROB_RT.addVars(Line_Set, lb=0, ub=Big_M)
-    Line_Q_b_sq_max = PROB_RT.addVars(Line_Set, lb=0, ub=Big_M)
-    Line_P_t_abs_max = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_Q_t_abs_max = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_P_b_abs_max = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    Line_Q_b_abs_max = PROB_RT.addVars(Line_Set, lb=-Big_M, ub=Big_M)
-    PV_P = PROB_RT.addVars(PV_Set, lb=0, ub=Big_M)
-    PV_Q = PROB_RT.addVars(PV_Set, lb=-Big_M, ub=Big_M)
-    ST_P = PROB_RT.addVars(ST_Set, lb=-Big_M, ub=Big_M)
-    ST_Q = PROB_RT.addVars(ST_Set, lb=-Big_M, ub=Big_M)
-    ST_SOC = PROB_RT.addVars(ST_Set, lb=-Big_M, ub=Big_M)
-    ST_SOC_dev_pos = PROB_RT.addVars(ST_Set, lb=0, ub=Big_M)
-    ST_SOC_dev_neg = PROB_RT.addVars(ST_Set, lb=0, ub=Big_M)
-    ST_SOC_tilde = PROB_RT.addVars(ST_Set, lb=-Big_M, ub=Big_M)
-    ST_P_pos = PROB_RT.addVars(ST_Set, lb=0, ub=Big_M)
-    ST_P_neg = PROB_RT.addVars(ST_Set, lb=-Big_M, ub=0)
-    # ST_U_pos = PROB_RT.addVars(ST_Set, vtype=GRB.BINARY)
-    # ST_U_neg = PROB_RT.addVars(ST_Set, vtype=GRB.BINARY)
-    Net_P = PROB_RT.addVars(Node_Set, lb=-Big_M, ub=Big_M)
-    Net_Q = PROB_RT.addVars(Node_Set, lb=-Big_M, ub=Big_M)
-    ConPoint_P = PROB_RT.addVars(ConPoint_Set, lb=-Big_M, ub=Big_M)
-    ConPoint_Q = PROB_RT.addVars(ConPoint_Set, lb=-Big_M, ub=Big_M)
-    ConPoint_P_dev_pos = PROB_RT.addVars(ConPoint_Set, lb=0)
-    ConPoint_P_dev_neg = PROB_RT.addVars(ConPoint_Set, lb=0)
-    ConPoint_Q_dev_pos = PROB_RT.addVars(ConPoint_Set, lb=0)
-    ConPoint_Q_dev_neg = PROB_RT.addVars(ConPoint_Set, lb=0)
-    OBJ_RT_MARKET = PROB_RT.addVars(ConPoint_Set, lb=-Big_M, ub=Big_M)
-    ### Defining Constraints
-    for nn in Node_Set:
-        # (1a)
-        PROB_RT.addConstr(Net_P[nn] ==
-                          sum(PV_P[i] * PV_Inc_Mat[i, nn] for i in PV_Set)
-                          + sum(ST_P[s] * ST_Inc_Mat[s, nn] for s in ST_Set)
-                          - sum(DM_P[d] * DM_Inc_Mat[d, nn] for d in DM_Set)
-                          + sum(ConPoint_P[f] * ConPoint_Inc_Mat[f, nn] for f in ConPoint_Set))
-        # (1b)
-        PROB_RT.addConstr(Net_Q[nn] ==
-                          sum(PV_Q[i] * PV_Inc_Mat[i, nn] for i in PV_Set)
-                          + sum(ST_Q[s] * ST_Inc_Mat[s, nn] for s in ST_Set)
-                          - sum(DM_Q[d] * DM_Inc_Mat[d, nn] for d in DM_Set)
-                          + sum(ConPoint_Q[f] * ConPoint_Inc_Mat[f, nn] for f in ConPoint_Set))
-        # (12c) abd (12d) of Mostafa
-        PROB_RT.addConstr(Vmag_sq_over[nn] <= V_max[nn] * V_max[nn])
-        PROB_RT.addConstr(Vmag_sq[nn] >= V_min[nn] * V_min[nn])
-    for n1, n2 in Line_Set:
-        # (8a) of Mostafa
-        PROB_RT.addConstr(Line_P_t[n1, n2] == - Net_P[n2]
-                          + sum(Line_P_t[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set)
-                          + Line_Zre[n1, n2] * Line_f[n1, n2] / 1000)
-        PROB_RT.addConstr(Line_Q_t[n1, n2] == - Net_Q[n2]
-                          + sum(Line_Q_t[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set)
-                          + Line_Zim[n1, n2] * Line_f[n1, n2] / 1000
-                          - 1000 * (Vmag_sq[n1] + Vmag_sq[n2]) * Line_b[n1, n2] * (Line_Vbase[n1, n2] ** 2))
-        # (8b) of Mostafa
-        PROB_RT.addConstr((Vmag_sq[n2] - Vmag_sq[n1]) * (Line_Vbase[n1, n2] ** 2) ==
-                          - 2 * Line_Zre[n1, n2] * Line_P_t[n1, n2] / 1000
-                          - 2 * Line_Zim[n1, n2] * Line_Q_t[n1, n2] / 1000
-                          + 2 * Line_Zim[n1, n2] * Vmag_sq[n1] * Line_b[n1, n2] * (Line_Vbase[n1, n2] ** 2)
-                          + (Line_Zre[n1, n2] * Line_Zre[n1, n2]
-                             + Line_Zim[n1, n2] * Line_Zim[n1, n2]) * Line_f[n1, n2] / 1000000)
-        # (8d) of Mostafa
-        PROB_RT.addConstr(Line_P_b[n1, n2] == - Net_P[n2]
-                          + sum(Line_P_t[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set))
-        PROB_RT.addConstr(Line_Q_b[n1, n2] == - Net_Q[n2]
-                          + sum(Line_Q_t[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set))
-        # (10) of Mostafa
-        PROB_RT.addConstr(Line_f[n1, n2] * Vmag_sq[n1] * (Line_Vbase[n1, n2] ** 2) >= Line_P_t[n1, n2]
-                          * Line_P_t[n1, n2]
-                          + (Line_Q_t[n1, n2] + Vmag_sq[n1] * Line_b[n1, n2] * (Line_Vbase[n1, n2] ** 2) * 1000)
-                          * (Line_Q_t[n1, n2] + Vmag_sq[n1] * Line_b[n1, n2] * (Line_Vbase[n1, n2] ** 2) * 1000))
-        # (11a) of Mostafa
-        PROB_RT.addConstr(Line_P_t_hat[n1, n2] == - Net_P[n2]
-                          + sum(Line_P_t_hat[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set))
-        PROB_RT.addConstr(Line_Q_t_hat[n1, n2] == - Net_Q[n2]
-                          + sum(Line_Q_t_hat[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set)
-                          - 1000 * (Vmag_sq_over[n1] + Vmag_sq_over[n2]) * Line_b[n1, n2] * (Line_Vbase[n1, n2] ** 2))
-        # (11b) of Mostafa
-        PROB_RT.addConstr((Vmag_sq_over[n2] - Vmag_sq_over[n1]) * (Line_Vbase[n1, n2] ** 2) ==
-                          - 2 * Line_Zre[n1, n2] * Line_P_t_hat[n1, n2] / 1000
-                          - 2 * Line_Zim[n1, n2] * Line_Q_t_hat[n1, n2] / 1000
-                          + 2 * Line_Zim[n1, n2] * Vmag_sq_over[n1] * Line_b[n1, n2] * (Line_Vbase[n1, n2] ** 2))
-        # (11c) of Mostafa
-        PROB_RT.addConstr(Line_P_t_over[n1, n2] == - Net_P[n2]
-                          + sum(Line_P_t_over[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set)
-                          + Line_Zre[n1, n2] * Line_f_over[n1, n2] / 1000)
-        PROB_RT.addConstr(Line_Q_t_over[n1, n2] == - Net_Q[n2]
-                          + sum(Line_Q_t_over[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set)
-                          + Line_Zim[n1, n2] * Line_f_over[n1, n2] / 1000
-                          - 1000 * (Vmag_sq[n1] + Vmag_sq[n2]) * Line_b[n1, n2] * (Line_Vbase[n1, n2] ** 2))
-        # (11d) of Mostafa
-        PROB_RT.addConstr(Line_f_over[n1, n2] * Vmag_sq[n2] * (Line_Vbase[n1, n2] ** 2)
-                          >= Line_P_b_sq_max[n1, n2] * Line_P_b_sq_max[n1, n2]
-                          + Line_Q_b_sq_max[n1, n2] * Line_Q_b_sq_max[n1, n2])
-        PROB_RT.addConstr(Line_P_b_sq_max[n1, n2] >= Line_P_b_hat[n1, n2])
-        PROB_RT.addConstr(Line_P_b_sq_max[n1, n2] >= - Line_P_b_hat[n1, n2])
-        PROB_RT.addConstr(Line_P_b_sq_max[n1, n2] >= Line_P_b_over[n1, n2])
-        PROB_RT.addConstr(Line_P_b_sq_max[n1, n2] >= - Line_P_b_over[n1, n2])
-        PROB_RT.addConstr(Line_Q_b_sq_max[n1, n2] >=
-                          (Line_Q_b_hat[n1, n2] - Vmag_sq_over[n2] * Line_b[n1, n2]
-                           * (Line_Vbase[n1, n2] ** 2) * 1000))
-        PROB_RT.addConstr(Line_Q_b_sq_max[n1, n2] >= - (Line_Q_b_hat[n1, n2] - Vmag_sq_over[n2] * Line_b[n1, n2]
-                                                        * (Line_Vbase[n1, n2] ** 2) * 1000))
-        PROB_RT.addConstr(Line_Q_b_sq_max[n1, n2] >= (Line_Q_b_over[n1, n2] - Vmag_sq[n2] * Line_b[n1, n2]
-                                                      * (Line_Vbase[n1, n2] ** 2) * 1000))
-        PROB_RT.addConstr(Line_Q_b_sq_max[n1, n2] >= - (Line_Q_b_over[n1, n2] - Vmag_sq[n2] * Line_b[n1, n2]
-                                                        * (Line_Vbase[n1, n2] ** 2) * 1000))
-        # (11e) of Mostafa
-        PROB_RT.addConstr(Line_f_over[n1, n2] * Vmag_sq[n1] * (Line_Vbase[n1, n2] ** 2)
-                          >= Line_P_t_sq_max[n1, n2] * Line_P_t_sq_max[n1, n2]
-                          + Line_Q_t_sq_max[n1, n2] * Line_Q_t_sq_max[n1, n2])
-        PROB_RT.addConstr(Line_P_t_sq_max[n1, n2] >= Line_P_t_hat[n1, n2])
-        PROB_RT.addConstr(Line_P_t_sq_max[n1, n2] >= - Line_P_t_hat[n1, n2])
-        PROB_RT.addConstr(Line_P_t_sq_max[n1, n2] >= Line_P_t_over[n1, n2])
-        PROB_RT.addConstr(Line_P_t_sq_max[n1, n2] >= - Line_P_t_over[n1, n2])
-        PROB_RT.addConstr(Line_Q_t_sq_max[n1, n2] >= (Line_Q_t_hat[n1, n2] + Vmag_sq_over[n1] * Line_b[n1, n2]
-                                                      * (Line_Vbase[n1, n2] ** 2) * 1000))
-        PROB_RT.addConstr(Line_Q_t_sq_max[n1, n2] >= - (Line_Q_t_hat[n1, n2] + Vmag_sq_over[n1] * Line_b[n1, n2]
-                                                        * (Line_Vbase[n1, n2] ** 2) * 1000))
-        PROB_RT.addConstr(Line_Q_t_sq_max[n1, n2] >= (Line_Q_t_over[n1, n2] + Vmag_sq[n1] * Line_b[n1, n2]
-                                                      * (Line_Vbase[n1, n2] ** 2) * 1000))
-        PROB_RT.addConstr(Line_Q_t_sq_max[n1, n2] >= - (Line_Q_t_over[n1, n2] + Vmag_sq[n1] * Line_b[n1, n2]
-                                                        * (Line_Vbase[n1, n2] ** 2) * 1000))
-        # (11f) of Mostafa
-        PROB_RT.addConstr(Line_P_b_over[n1, n2] == - Net_P[n2]
-                          + sum(Line_P_t_over[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set))
-        PROB_RT.addConstr(Line_Q_b_over[n1, n2] == - Net_Q[n2]
-                          + sum(Line_Q_t_over[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set))
-        # (11g) of Mostafa
-        PROB_RT.addConstr(Line_P_b_hat[n1, n2] == - Net_P[n2]
-                          + sum(Line_P_t_hat[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set))
-        PROB_RT.addConstr(Line_Q_b_hat[n1, n2] == - Net_Q[n2]
-                          + sum(Line_Q_t_hat[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in Line_Set))
-        # (12e) of Mostafa
-        PROB_RT.addConstr(Line_P_b_abs_max[n1, n2] * Line_P_b_abs_max[n1, n2]
-                          + Line_Q_b_abs_max[n1, n2] * Line_Q_b_abs_max[n1, n2]
-                          <= Vmag_sq[n2] * (Line_Smax[n1, n2] ** 2) * 9 / (1000 * Line_Vbase[n1, n2] ** 2))
-        PROB_RT.addConstr(Line_P_b_abs_max[n1, n2] >= Line_P_b_hat[n1, n2])
-        PROB_RT.addConstr(Line_P_b_abs_max[n1, n2] >= -Line_P_b_hat[n1, n2])
-        PROB_RT.addConstr(Line_P_b_abs_max[n1, n2] >= Line_P_b_over[n1, n2])
-        PROB_RT.addConstr(Line_P_b_abs_max[n1, n2] >= -Line_P_b_over[n1, n2])
-        PROB_RT.addConstr(Line_Q_b_abs_max[n1, n2] >= Line_Q_b_hat[n1, n2])
-        PROB_RT.addConstr(Line_Q_b_abs_max[n1, n2] >= -Line_Q_b_hat[n1, n2])
-        PROB_RT.addConstr(Line_Q_b_abs_max[n1, n2] >= Line_Q_b_over[n1, n2])
-        PROB_RT.addConstr(Line_Q_b_abs_max[n1, n2] >= -Line_Q_b_over[n1, n2])
-        # (12f) of Mostafa
-        PROB_RT.addConstr(Line_P_t_abs_max[n1, n2] * Line_P_t_abs_max[n1, n2]
-                          + Line_Q_t_abs_max[n1, n2] * Line_Q_t_abs_max[n1, n2]
-                          <= Vmag_sq[n1] * (Line_Smax[n1, n2] ** 2) * 9 / (1000 * Line_Vbase[n1, n2] ** 2))
-        PROB_RT.addConstr(Line_P_t_abs_max[n1, n2] >= Line_P_t_hat[n1, n2])
-        PROB_RT.addConstr(Line_P_t_abs_max[n1, n2] >= -Line_P_t_hat[n1, n2])
-        PROB_RT.addConstr(Line_P_t_abs_max[n1, n2] >= Line_P_t_over[n1, n2])
-        PROB_RT.addConstr(Line_P_t_abs_max[n1, n2] >= -Line_P_t_over[n1, n2])
-        PROB_RT.addConstr(Line_Q_t_abs_max[n1, n2] >= Line_Q_t_hat[n1, n2])
-        PROB_RT.addConstr(Line_Q_t_abs_max[n1, n2] >= -Line_Q_t_hat[n1, n2])
-        PROB_RT.addConstr(Line_Q_t_abs_max[n1, n2] >= Line_Q_t_over[n1, n2])
-        PROB_RT.addConstr(Line_Q_t_abs_max[n1, n2] >= -Line_Q_t_over[n1, n2])
-        # (12g) of Mostafa
-        PROB_RT.addConstr(Line_P_t[n1, n2] <= Line_P_t_over[n1, n2])
-        PROB_RT.addConstr(Line_Q_t[n1, n2] <= Line_Q_t_over[n1, n2])
-    for s in ST_Set:
-        # (21a)
-        PROB_RT.addConstr(ST_SOC[s] == ST_Eff_LV[s] * ST_SOC_t_1[s]
-                          - ST_P_neg[s] * DeltaT * ST_Eff_neg[s]
-                          - ST_P_pos[s] * DeltaT / ST_Eff_pos[s])
-        PROB_RT.addConstr(ST_SOC_tilde[s] == ST_Eff_LV[s] * ST_SOC_t_1[s]
-                          - ST_P[s] * DeltaT)
-        # (22d)
-        PROB_RT.addConstr(ST_P[s] == ST_P_pos[s] + ST_P_neg[s])
-        # (22e)
-        PROB_RT.addConstr(ST_Q[s] * ST_Q[s] + ST_P[s] * ST_P[s] <= ST_S_max[s] * ST_S_max[s])
-        # (22b)
-        PROB_RT.addConstr(ST_P_pos[s] <= ST_S_max[s])
-        # (22c)
-        PROB_RT.addConstr(ST_P_neg[s] >= -ST_S_max[s])
-        # (22f)
-        PROB_RT.addConstr(ST_SOC[s] <= ST_SOC_max[s])
-        PROB_RT.addConstr(ST_SOC[s] >= ST_SOC_min[s])
-        # (22h)
-        PROB_RT.addConstr(ST_SOC_tilde[s] <= ST_SOC_max[s])
-        PROB_RT.addConstr(ST_SOC_tilde[s] >= ST_SOC_min[s])
-        PROB_RT.addConstr(ST_SOC[s] - ST_SOC_des[s] == ST_SOC_dev_pos[s] - ST_SOC_dev_neg[s])
-    for i in PV_Set:
-        # (28)
-        PROB_RT.addConstr(PV_P[i] <= PV_Forecast[i])
-        # (26)
-        PROB_RT.addConstr(PV_P[i] * PV_P[i]
-                          + (PV_Q[i] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                          * (PV_Q[i] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
-                          <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
-                          * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
-        # (27)
-        PROB_RT.addConstr(PV_P[i] * PV_P[i] + PV_Q[i] * PV_Q[i] <= PV_cap[i] * PV_cap[i])
-        # PROB_RT.addConstr(PV_Q[i] == 0)
-    for f in ConPoint_Set:
-        PROB_RT.addConstr(ConPoint_P[f] == sum(Line_P_t[n1, n2] * ConPoint_Inc_Mat[f, n1] for n1, n2 in Line_Set))
-        PROB_RT.addConstr(ConPoint_Q[f] == sum(Line_Q_t[n1, n2] * ConPoint_Inc_Mat[f, n1] for n1, n2 in Line_Set))
-        # first line of (34a)
-        PROB_RT.addConstr(OBJ_RT_MARKET[f] >= l1 * sum(Line_Zre[n1, n2] * Line_f[n1, n2] for n1, n2 in Line_Set)
-                          + l2 * sum(ST_SOC_dev_pos[s] + ST_SOC_dev_neg[s] for s in ST_Set)
-                          + l3 * (ConPoint_P_dev_pos[f] + ConPoint_P_dev_neg[f]
-                                  + ConPoint_Q_dev_pos[f] + ConPoint_Q_dev_neg[f]))
-        # constraints for defining deployed reserves
-        PROB_RT.addConstr(ConPoint_P[f] == ConPoint_P_DA_EN[f]
-                          - ConPoint_fac_P_pos[f] * ConPoint_P_DA_RS_pos[f]
-                          + ConPoint_fac_P_neg[f] * ConPoint_P_DA_RS_neg[f]
-                          - ConPoint_P_dev_pos[f] + ConPoint_P_dev_neg[f])
-        PROB_RT.addConstr(ConPoint_Q[f] == ConPoint_Q_DA_EN[f]
-                          - ConPoint_fac_Q_pos[f] * ConPoint_Q_DA_RS_pos[f]
-                          + ConPoint_fac_Q_neg[f] * ConPoint_Q_DA_RS_neg[f]
-                          - ConPoint_Q_dev_pos[f] + ConPoint_Q_dev_neg[f])
-        # slack bus definition
-        PROB_RT.addConstr(sum(Vmag_sq[n] * ConPoint_Inc_Mat[f, n] for n in Node_Set)
-                          == ConPoint_Vmag[f] * ConPoint_Vmag[f])
-        ### Defining Objective and Solving the Problem
-    PROB_RT.setObjective(1000 * DeltaT * OBJ_RT_MARKET.sum(), GRB.MINIMIZE)
-    PROB_RT.Params.BarHomogeneous = 1
-    PROB_RT.optimize()
-    ### Solution
-    try:
-        # Solution_PV_P = PROB_RT.getAttr('x', PV_P)
-        # Solution_PV_Q = PROB_RT.getAttr('x', PV_Q)
-        # Solution_ST_P = PROB_RT.getAttr('x', ST_P)
-        # Solution_ST_Q = PROB_RT.getAttr('x', ST_Q)
-        Solution_ST_SOC = PROB_RT.getAttr('x', ST_SOC)
-        # Solution_ST_SOC2 = PROB_RT.getAttr('x', ST_SOC_tilde)
-        Solution_P_dev_pos = PROB_RT.getAttr('x', ConPoint_P_dev_pos)
-        Solution_P_dev_neg = PROB_RT.getAttr('x', ConPoint_P_dev_neg)
-        Solution_Q_dev_pos = PROB_RT.getAttr('x', ConPoint_P_dev_pos)
-        Solution_Q_dev_neg = PROB_RT.getAttr('x', ConPoint_P_dev_neg)
-        Solution_ST_SOCC = [Solution_ST_SOC[s] for s in ST_Set]
-        DA_result["Solution_ST_SOC_RT"] = Solution_ST_SOCC
-        dres = (Solution_P_dev_pos[0] + Solution_P_dev_neg[0] + Solution_Q_dev_pos[0] + Solution_Q_dev_neg[0] >
-                rt_meas_inp["delta"])
-    except:
-        DA_result["Solution_ST_SOC_RT"] = ST_SOC_t_1
-        dres = 1
-    return DA_result, dres

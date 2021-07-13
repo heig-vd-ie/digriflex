@@ -6,7 +6,7 @@ import numpy as np
 
 
 def reine_parameters():
-    """" Not Completed: CM#1
+    """" Not Completed: CM#0
     This function is for loading the constant parameters of REINE
     Output: dictionary of parameters
     parameters = {R_ReIne_N, R_ReIne_U, R_ReIne_V, R_ReIne_W, L_ReIne_N, L_ReIne_U, L_ReIne_V,
@@ -70,6 +70,7 @@ def reine_parameters():
     parameters['Ond_X_PV_pu'] = [3 * parameters['Ond_V_grid_pu'][x] *
                                  (parameters['Ond_V_conv_pu'][x] - parameters['Ond_V_grid_pu'][x]) * parameters['Sbase']
                                  / (1000 * parameters['Ond_Cap'][x]) for x in range(3)]
+    parameters['Ond_cos_PV'] = [0.89, 0.89, 0.89]
     # Con = [Battery]
     parameters['Con_SOC_min_kWh'] = [0]
     parameters['Con_SOC_max_kWh'] = [64]
@@ -133,6 +134,7 @@ def grid_topology_sim(case_name, Vec_inp):
         Ond_V_grid_pu = parameters['Ond_V_grid_pu']
         Ond_V_conv_pu = parameters['Ond_V_conv_pu']
         Ond_X_PV_pu = parameters['Ond_X_PV_pu']
+        Ond_cos_PV = parameters['Ond_cos_PV']
         Con_SOC_min_kWh = parameters['Con_SOC_min_kWh']
         Con_SOC_max_kWh = parameters['Con_SOC_max_kWh']
         Con_S_max_kVA = parameters['Con_S_max_kVA']
@@ -311,14 +313,14 @@ def grid_topology_sim(case_name, Vec_inp):
         Con = [0, 0, 0]
         # Con = [Cinergia, SOP, Battery]
     elif case_name == "Case_4bus_DiGriFlex":
-        S_73K = [True, True, False, False, False, False, False]
+        S_73K = [True, False, False, False, True, False, False]
         # 73K = [14, 15, 16, 17, 18, 19, 20]
         S_74K = [False, False, False, False, False, False, False, True, True, False,
                  False, True, True, True, True]
         # 74K = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
         S_L9 = [0, 0]
         # S_L9 = [1-5, 6-9]
-        Charge = [3, 6, 0, 0, 0, 0, 0, 0]
+        Charge = [3, 0, 0, 0, 0, 0, 0, 0]
         # Ch_node = [1, 2, 3, 4, 5, 6, 7, 8]
         Ond = [0, 9, 0]
         # Ond = [SolarMax, ABB, KACO]
@@ -499,7 +501,7 @@ def grid_topology_sim(case_name, Vec_inp):
                 j = j + 1
                 data["PV_elements"].append({"index": j, "bus": str(p),
                                             "cap_kVA_perPhase": Ond_Cap[index] / 3, "V_grid_pu": Ond_V_grid_pu[index],
-                                            "V_conv_pu": Ond_V_conv_pu[index], "X_PV_pu": Ond_X_PV_pu[index]})
+                                            "V_conv_pu": Ond_V_conv_pu[index], "X_PV_pu": Ond_X_PV_pu[index], "cos_PV": Ond_cos_PV[index]})
         data["load_elements"] = []
         j = -1
         for ch in Charge:
@@ -872,7 +874,7 @@ def sim_loadflow_time_series(grid_inp, meas_inp, title):
 
 
 def forecast_defining(pv_hist, dem_P_hist, dem_Q_hist):
-    """" Not Completed: CM#2
+    """" Not Completed: CM#0
     This function is used to make the forecast input of
     Inputs: - pv_hist
             - dem_P_hist
@@ -925,9 +927,10 @@ def rt_simulation(grid_inp, meas_inp, fore_inp, DA_result, t):
     _ = meas_inp
     rt_meas_inp = {}
     rt_meas_inp["delta"] = DA_result["delta"]
-    rt_meas_inp["Loss_Coeff"] = 1
+    rt_meas_inp["Loss_Coeff"] = 0
     rt_meas_inp["ST_Coeff"] = 1
-    rt_meas_inp["dev_Coeff"] = 100
+    rt_meas_inp["PV_Coeff"] = 100
+    rt_meas_inp["dev_Coeff"] = 1000
     b = norm.ppf(0.999)
     a = max([-b, min([b, gauss(0, 1)])]) / norm.ppf(fore_inp["confidence"])
     rt_meas_inp["P_PV"] = fore_inp["P_PV"][t] + fore_inp["P_PV_zeta+"][t] / norm.ppf(fore_inp["confidence"]) \

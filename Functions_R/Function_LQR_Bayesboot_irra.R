@@ -1,6 +1,6 @@
 ##### Path of installed packages
-# R_libraries_path <- "C:/Users/mohammad.rayati/Documents/R/win-library/4.0"
-R_libraries_path <- "C:/Users/labo-reine-iese/Documents/R/win-library/4.0"
+R_libraries_path <- "C:/Users/mohammad.rayati/Documents/R/win-library/4.0"
+# R_libraries_path <- "C:/Users/labo-reine-iese/Documents/R/win-library/4.0"
 .libPaths(c(R_libraries_path))
 sink("nul")
 

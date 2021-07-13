@@ -4,19 +4,18 @@
 ## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (function "reine_parameters()")
 ## - CM#0: @AuxiliaryFunctions: Integrating with the dayahead forecasting code of Pasquale ("forecast_defining")
 ## - CM#0: @AuxiliaryFunctions: reamined reviewing from functions "rt_simulation"
-## - CM#0: @OptimizationFunctions: reamined reviewing from functions "rt_optimziation_digriflex"
+## - CM#0: @OptimizationFunctions: reamined reviewing from functions "DA_Optimization_Robust"
+## - CM#0: Connection of realtime code with day_ahead optimization and modifiying the optimization functions
 ## - CM#1: Day-ahead forecasting and opt -> First solution: without weather prediction; Second solution: MeteoSwiss API
 ## - CM#2: Real-time forecasting of loads
 ## - CM#3: Finding power output from the irradiance and temperature
-## - CM#4: rt_optimization_function_digiriflex
-## - CM#5: running the test with labview
-## - CM#6: testing the gurobipy licence
+## - CM#4: running the test with labview
+## - CM#5: testing the gurobipy licence
 
 #### Importing packages
 import os
 import sys
 import warnings
-# import numpy as np
 import pandas as pd
 import math
 import pickle
@@ -31,22 +30,12 @@ from rpy2.robjects.conversion import localconverter
 print(sys.version)
 
 #### Defining meta parameters
-# dir_path = r"C:\Users\mohammad.rayati\Desktop\DiGriFlex_Code"  # Defining directory path of the code
-dir_path = r"C:\Users\labo-reine-iese\Desktop\DiGriFlex_Code"
+dir_path = r"C:\Users\mohammad.rayati\Desktop\DiGriFlex_Code"  # Defining directory path of the code
+# dir_path = r"C:\Users\labo-reine-iese\Desktop\DiGriFlex_Code"
 network_name = "Case_4bus_DiGriFlex"  # Defining the network
 # network_name = "Case_LabVIEW"
-# python64_path = r"C:\Users\mohammad.rayati\AppData\Local\Programs\Python\Python39\python.exe"
-python64_path = r"C:\Users\labo-reine-iese\AppData\Local\Programs\Python\Python39\python.exe"
-N_boot0 = 300  # Desired number of bootstrap samples.
-mydb = mysql.connector.connect(host="10.192.48.47",
-                               user="heigvd_meteo_ro",
-                               port="3306",
-                               password="at5KUPusS9",
-                               database="heigvdch_meteo")  # Database for reading real-time data
-
-#### Temporary variables for dayahead scheduling (CM#5 and CM#6 and CM#1)
-P_SC, Q_SC = [7] * 144, [0] * 144
-RPP_SC, RPN_SC, RQP_SC, RQN_SC = [0.4] * 144, [0.4] * 144, [0.2] * 144, [0.2] * 144
+python64_path = r"C:\Users\mohammad.rayati\AppData\Local\Programs\Python\Python39\python.exe"
+# python64_path = r"C:\Users\labo-reine-iese\AppData\Local\Programs\Python\Python39\python.exe"
 
 
 #### Functions
@@ -57,7 +46,17 @@ def interface_control_digriflex(Vec_Inp):
     Q Cinergia, P1 SOP, Q1 SOP, P2 SOP, Q2 SOP, P GM, Q GM]
     """
     ## Reading inputs
-    _, _, _, _, _, Charge_P, Charge_Q, Ond_P, Ond_Q, _, _, SOC = af.interface_meas(Vec_Inp)
+    file_to_read = open(dir_path + r"/Data/tmp_da.pickle", "rb")
+    P_SC = pickle.load(file_to_read)
+    Q_SC = pickle.load(file_to_read)
+    RPP_SC = pickle.load(file_to_read)
+    RPN_SC = pickle.load(file_to_read)
+    RQP_SC = pickle.load(file_to_read)
+    RQN_SC = pickle.load(file_to_read)
+    SOC_dersired = pickle.load(file_to_read)
+    prices_vec = pickle.load(file_to_read)
+    file_to_read.close()
+    _, Ligne_U, _, _, _, Charge_P, Charge_Q, Ond_P, Ond_Q, _, _, SOC = af.interface_meas(Vec_Inp)
     # Cinergia_P_m, Cinergia_Q_m = Charge_P[11], Charge_Q[11]
     # ABB_P_m, ABB_Q_m = Ond_P[1], Ond_Q[1]
     ## Algorithm
@@ -69,13 +68,14 @@ def interface_control_digriflex(Vec_Inp):
     # pred_for = pd.DataFrame(pred_for).set_index('Unnamed: 0')
     now = datetime.now()
     timestep = (now.hour - 1) * 6 + math.floor(now.minute / 10) + 2
-    result_p, result_irra = forecasting_pv_rt(pred_for, timestep, N_boot0)
+    result_p_pv, result_irra = forecasting_pv_rt(pred_for, timestep)
+    result_p_dm, result_q_dm = 0, 0
     ## For testing and saving data
     ####################################################################################
     print(data_rt[["P", "irra", "Plag2_for", "Irralag2_for"]][-1:])
-    print("forecast_P, forecast_irra:" + str(round(result_p, 5)) + ', ' + str(round(result_irra, 2)))
+    print("forecast_P, forecast_irra:" + str(round(result_p_pv, 5)) + ', ' + str(round(result_irra, 2)))
     df = pd.DataFrame([[now, pred_for.index[-1], data_rt.iloc[-1]['Plag2_for'], data_rt.iloc[-1]['Irralag2_for'],
-                        round(result_p, 5), round(result_irra, 2)]])
+                        round(result_p_pv, 5), round(result_irra, 2)]])
     df.to_csv(dir_path + r'\Data\recorded_forecast_pv.csv', mode='a', header=False)
     ####################################################################################
     grid_inp = af.grid_topology_sim(network_name, Vec_Inp)
@@ -83,10 +83,14 @@ def interface_control_digriflex(Vec_Inp):
     Q_net = Q_SC[timestep] + random.uniform(-RQN_SC[timestep], RQP_SC[timestep])  # Uniform dist. of reserves activation
     file_to_store = open(dir_path + r"/Data/tmp.pickle", "wb")
     pickle.dump(grid_inp, file_to_store)
+    pickle.dump(400, file_to_store)  # Ligne_U[0]
     pickle.dump(P_net, file_to_store)
     pickle.dump(Q_net, file_to_store)
-    pickle.dump(result_p, file_to_store)
+    pickle.dump(result_p_pv, file_to_store)
+    pickle.dump([result_p_dm, result_q_dm], file_to_store)
     pickle.dump(SOC, file_to_store)
+    pickle.dump(SOC_dersired[timestep], file_to_store)
+    pickle.dump(prices_vec, file_to_store)
     file_to_store.close()
     os.system(python64_path + ' -c ' +
               '\"import sys;' +
@@ -95,14 +99,19 @@ def interface_control_digriflex(Vec_Inp):
                                                     'import pickle;' +
               'file_to_read = open(r\'' + dir_path + '\' + r\'/Data/tmp.pickle\', \'rb\');' +
               'grid_inp = pickle.load(file_to_read);' +
+              'V_mag = pickle.load(file_to_read);' +
               'P_net = pickle.load(file_to_read);' +
               'Q_net = pickle.load(file_to_read);' +
-              'forecast = pickle.load(file_to_read);' +
+              'forecast_pv = pickle.load(file_to_read);' +
+              'forecast_dm = pickle.load(file_to_read);' +
               'SOC = pickle.load(file_to_read);' +
+              'SOC_desired = pickle.load(file_to_read);' +
+              'prices_vec = pickle.load(file_to_read);' +
               'file_to_read.close();'
               'import Functions_P.OptimizationFunctions as of;'
               'ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp = ' +
-              'of.rt_following_digriflex(grid_inp, P_net, Q_net, forecast, SOC);' +  # this function will be changed
+              'of.rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SOC, SOC_desired, prices_vec);'
+              # 'of.rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC);' +  # this function will be changed
               'file_to_store = open(r\'' + dir_path + '\' + r\'/Data/tmp.pickle\', \'wb\');' +
               'pickle.dump(ABB_P_sp, file_to_store);' +
               'pickle.dump(ABB_c_sp, file_to_store);' +
@@ -138,6 +147,11 @@ def access_data_rt():
             -- [Irralag6_for] = irradiation with 6 lags
             -- [Plag2_for] = P_ABB with 2 lags
     """
+    mydb = mysql.connector.connect(host="10.192.48.47",
+                                   user="heigvd_meteo_ro",
+                                   port="3306",
+                                   password="at5KUPusS9",
+                                   database="heigvdch_meteo")  # Database for reading real-time data
     mycursor = mydb.cursor()
     mycursor.execute(
         "SELECT `Date and Time`, `Labo Reine.ABB.Power AC [W]`, `Meteo.Irradiance.Rayonnement Global moyen [W/m2]` "
@@ -161,7 +175,7 @@ def access_data_rt():
     return myresult
 
 
-def forecasting_pv_rt(pred_for, time_step, N_boot):
+def forecasting_pv_rt(pred_for, time_step):
     """" Completed:
     This function is for running the real-time forecasting R code written by Pasquale
     Inputs:
@@ -170,6 +184,7 @@ def forecasting_pv_rt(pred_for, time_step, N_boot):
         - N_boot: desired number of bootstrap samples.
     Output: result_irra: forecasted irradiance in W/m2
     """
+    N_boot = 300  # Desired number of bootstrap samples.
     ## Training dataset
     Irra_tra = pd.read_csv(dir_path + r"\Data\Irr_tra.csv")
     pred_tra_irr = pd.read_csv(dir_path + r"\Data\pred_tra_irr.csv")
