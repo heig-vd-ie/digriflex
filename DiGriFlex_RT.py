@@ -1,4 +1,4 @@
-"""Revised on: 01.08.2021, @author: MYI, #Python version: 3.6.8 [32 bit]"""
+"""@author: MYI, #Python version: 3.6.8 [32 bit]"""
 #### To Do lists:
 ## - CM#0: @DiGriFlex_DA, DiGriFlex_sim, Main_file
 ## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (function "reine_parameters()")
@@ -6,11 +6,11 @@
 ## - CM#0: @AuxiliaryFunctions: reamined reviewing from functions "rt_simulation"
 ## - CM#0: @OptimizationFunctions: reamined reviewing from functions "DA_Optimization_Robust"
 ## - CM#0: Connection of realtime code with day_ahead optimization and modifiying the optimization functions
-## - CM#1: Day-ahead forecasting and opt -> First solution: without weather prediction; Second solution: MeteoSwiss API
-## - CM#2: Real-time forecasting of loads
-## - CM#3: Finding power output from the irradiance and temperature
-## - CM#4: running the test with labview
-## - CM#5: testing the gurobipy licence
+## - CM#1: Finding power output from the irradiance and temperature
+## - CM#2: Day-ahead forecasting and opt -> First solution: without weather prediction; Second solution: MeteoSwiss API
+## - CM#3: Real-time forecasting of loads
+## - CM#4: Running the test with labview
+
 
 #### Importing packages
 import os
@@ -27,7 +27,9 @@ from datetime import datetime, timedelta
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 
+
 print(sys.version)
+
 
 #### Defining meta parameters
 dir_path = r"C:\Users\mohammad.rayati\Desktop\DiGriFlex_Code"  # Defining directory path of the code

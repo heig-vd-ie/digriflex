@@ -1,4 +1,4 @@
-"""Revised on: 01.08.2021, @author: MYI, #Python version: 3.6.8 [32 bit]"""
+"""@author: MYI, #Python version: 3.6.8 [32 bit]"""
 
 
 #### Importing packages

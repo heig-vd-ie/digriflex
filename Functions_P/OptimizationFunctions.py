@@ -1,4 +1,4 @@
-"""Revised on: 01.08.2021, @author: MYI, #Python version: 3.9.6 [64 bit]"""
+"""@author: MYI, #Python version: 3.9.6 [64 bit]"""
 
 import numpy as np
 import gurobipy as gp
