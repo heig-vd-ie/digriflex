@@ -1,6 +1,15 @@
 ##### Path of installed packages
-R_libraries_path <- "C:/Users/mohammad.rayati/Documents/R/win-library/4.0"
-# R_libraries_path <- "C:/Users/labo-reine-iese/Documents/R/win-library/4.0"
+user_name_str <- Sys.info()[[7]]
+R_libraries_path <- paste("C:/Users/",user_name_str,"/Documents/R/win-library/4.0", sep="")
+Data_path <- paste("C:/Users/",user_name_str,"/Desktop/DiGriFlex_Code/Data/", sep="")
+# if(Sys.info()[[7]] == "mohammad.rayati"){
+#   R_libraries_path <- "C:/Users/mohammad.rayati/Documents/R/win-library/4.0"
+#   Data_path <- "C:/Users/mohammad.rayati/Desktop/DiGriFlex_Code/Data/"
+# }
+# if(Sys.info()[[7]] == "labo-reine-iese"){
+#   R_libraries_path <- "C:/Users/labo-reine-iese/Documents/R/win-library/4.0"
+#   Data_path <- "C:/Users/labo-reine-iese/Desktop/DiGriFlex_Code/Data/"
+# }
 .libPaths(c(R_libraries_path))
 sink("nul")
 
@@ -11,7 +20,7 @@ suppressPackageStartupMessages(library(quantreg))
 
 
 ##### Actual function
-LQR_Bayesboot <- function(irra_tra,pred_tra,pred_for,h,N_boot) {
+LQR_Bayesboot <- function(pred_for,h,N_boot) {
   # This function provides a forecast y(t), given data observed until the time interval t-2
   
   # Output:
@@ -19,13 +28,13 @@ LQR_Bayesboot <- function(irra_tra,pred_tra,pred_for,h,N_boot) {
   # containing N_boot bootstrap samples of the 9 predictive quantiles at coverages 0.1,0.2,...,0.9
   
   # Inputs:
-  # 1) I_tra and pred_tra are always the same preprocessed training data.
-  # 2) pred_for is a data frame containing predictors irra(t-144),irra(t-2),irra(t-3),irra(t-4),irra(t-5),irra(t-6)
-  # 3) h is the number of the target 10-min interval of the day. E.g., the interval 10:00-10:10 
+  # 1) pred_for is a data frame containing predictors irra(t-144),irra(t-2),irra(t-3),irra(t-4),irra(t-5),irra(t-6)
+  # 2) h is the number of the target 10-min interval of the day. E.g., the interval 10:00-10:10
   #    is the 61th interval of the day; for h<=33 and h>=121 (before 5:30 and after 20:00) 
   #    the output is directly 0.
-  # 4) N_boot is the desired number of bootstrap samples. 
-  
+  # 3) N_boot is the desired number of bootstrap samples.
+
+  load(paste(Data_path,"Data_tra_Irr.RData",sep=""))
   ## ----------------------------- SET SEED FOR REPRODUCIBILITY -------------------------------
   set.seed(h)
   
