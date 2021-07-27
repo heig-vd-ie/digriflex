@@ -1,1 +1,1 @@
-start "" "C:\Users\mohammad.rayati\Desktop\DiGriFlex\venv\Scripts\python.exe" "C:\Users\mohammad.rayati\Desktop\DiGriFlex\DiGriFlex_RT.py"
+start "" "C:\Users\mohammad.rayati\Desktop\DiGriFlex_Code\venv\Scripts\python.exe" "C:\Users\mohammad.rayati\Desktop\DiGriFlex_Code\DiGriFlex_RT.py"
