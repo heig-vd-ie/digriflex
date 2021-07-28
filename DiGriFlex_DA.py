@@ -14,7 +14,7 @@ python64_path = r"C:\Users\mohammad.rayati\AppData\Local\Programs\Python\Python3
 
 
 #### Temporary variables for dayahead scheduling (CM#5 and CM#6 and CM#1)
-P_SC, Q_SC = [-5] * 144, [2] * 144
+P_SC, Q_SC = [-9] * 144, [2] * 144
 RPP_SC, RPN_SC, RQP_SC, RQN_SC = [0.4] * 144, [0.4] * 144, [0.2] * 144, [0.2] * 144
 SOC_dersired = [10] * 144
 prices_vec = [0, 1, 100, 1000]

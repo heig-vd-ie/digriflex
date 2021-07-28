@@ -198,6 +198,7 @@ def access_data_rt():
     mydata2 = pd.DataFrame.from_records(mydata2[-4 * 24 * 2:],
                                         columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'],
                                         index=['Date and Time'])
+    mydata2.index = mydata2.index.floor('10min')
     mydata2 = mydata2.resample('10min').interpolate(method='linear')
     now = datetime.now()
     if datetime.strftime(mydata2.index[-1], '%Y-%m-%d %H:%M') \
@@ -206,18 +207,18 @@ def access_data_rt():
         new_row = pd.DataFrame(new_row, columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'])
         new_row = new_row.set_index('Date and Time')
         mydata2 = mydata2.append(new_row, ignore_index=False)
-    myresult['Pdemlag2_for'] = mydata2['PL1'].shift(1) + mydata2['PL2'].shift(1) + mydata2['PL3'].shift(1)
-    myresult['Pdemlag3_for'] = mydata2['PL1'].shift(2) + mydata2['PL2'].shift(2) + mydata2['PL3'].shift(2)
-    myresult['Pdemlag4_for'] = mydata2['PL1'].shift(3) + mydata2['PL2'].shift(3) + mydata2['PL3'].shift(3)
-    myresult['Pdemlag5_for'] = mydata2['PL1'].shift(4) + mydata2['PL2'].shift(4) + mydata2['PL3'].shift(4)
-    myresult['Pdemlag6_for'] = mydata2['PL1'].shift(5) + mydata2['PL2'].shift(5) + mydata2['PL3'].shift(5)
-    myresult['Pdemlag144_for'] = mydata2['PL1'].shift(143) + mydata2['PL2'].shift(143) + mydata2['PL3'].shift(143)
-    myresult['Qdemlag2_for'] = mydata2['QL1'].shift(1) + mydata2['QL2'].shift(1) + mydata2['QL3'].shift(1)
-    myresult['Qdemlag3_for'] = mydata2['QL1'].shift(2) + mydata2['QL2'].shift(2) + mydata2['QL3'].shift(2)
-    myresult['Qdemlag4_for'] = mydata2['QL1'].shift(3) + mydata2['QL2'].shift(3) + mydata2['QL3'].shift(3)
-    myresult['Qdemlag5_for'] = mydata2['QL1'].shift(4) + mydata2['QL2'].shift(4) + mydata2['QL3'].shift(4)
-    myresult['Qdemlag6_for'] = mydata2['QL1'].shift(5) + mydata2['QL2'].shift(5) + mydata2['QL3'].shift(5)
-    myresult['Qdemlag144_for'] = mydata2['QL1'].shift(143) + mydata2['QL2'].shift(143) + mydata2['QL3'].shift(143)
+    myresult['Pdemlag2_for'] = (mydata2['PL1'].shift(1) + mydata2['PL2'].shift(1) + mydata2['PL3'].shift(1)) / 3
+    myresult['Pdemlag3_for'] = (mydata2['PL1'].shift(2) + mydata2['PL2'].shift(2) + mydata2['PL3'].shift(2)) / 3
+    myresult['Pdemlag4_for'] = (mydata2['PL1'].shift(3) + mydata2['PL2'].shift(3) + mydata2['PL3'].shift(3)) / 3
+    myresult['Pdemlag5_for'] = (mydata2['PL1'].shift(4) + mydata2['PL2'].shift(4) + mydata2['PL3'].shift(4)) / 3
+    myresult['Pdemlag6_for'] = (mydata2['PL1'].shift(5) + mydata2['PL2'].shift(5) + mydata2['PL3'].shift(5)) / 3
+    myresult['Pdemlag144_for'] = (mydata2['PL1'].shift(143) + mydata2['PL2'].shift(143) + mydata2['PL3'].shift(143)) / 3
+    myresult['Qdemlag2_for'] = (mydata2['QL1'].shift(1) + mydata2['QL2'].shift(1) + mydata2['QL3'].shift(1)) / 3
+    myresult['Qdemlag3_for'] = (mydata2['QL1'].shift(2) + mydata2['QL2'].shift(2) + mydata2['QL3'].shift(2)) / 3
+    myresult['Qdemlag4_for'] = (mydata2['QL1'].shift(3) + mydata2['QL2'].shift(3) + mydata2['QL3'].shift(3)) / 3
+    myresult['Qdemlag5_for'] = (mydata2['QL1'].shift(4) + mydata2['QL2'].shift(4) + mydata2['QL3'].shift(4)) / 3
+    myresult['Qdemlag6_for'] = (mydata2['QL1'].shift(5) + mydata2['QL2'].shift(5) + mydata2['QL3'].shift(5)) / 3
+    myresult['Qdemlag144_for'] = (mydata2['QL1'].shift(143) + mydata2['QL2'].shift(143) + mydata2['QL3'].shift(143)) / 3
     now = datetime.now()
     if datetime.strftime(myresult.index[-1], '%Y-%m-%d %H:%M') \
             < datetime.strftime(now - timedelta(hours=2), '%Y-%m-%d %H:%M'):
