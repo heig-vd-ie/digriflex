@@ -65,7 +65,8 @@ LQR_Bayesboot <- function(predP_for,h,N_boot) {
   for (q in seq(1,length(Q01),1))
   {
     qr_prev <- function(d)     # Definition of the forecasting function (quantile regression model)
-    { mdl_fit <- rq( P ~ Plag2 + Plag3 + Plag4,
+    { mdl_fit <- rq( P ~ Plag2 + Plag3 + Plag4 + Plag5 + Plag6 + Plag144 +
+                         Plag2*Plag144 + Plag2*Plag6,
                      tau=Q01[q], data = d)
       predict.rq(mdl_fit, DATA_forec_h) 
     } 
@@ -78,7 +79,7 @@ LQR_Bayesboot <- function(predP_for,h,N_boot) {
   P_prev[is.nan(P_prev)] <- 0
   P_prev[P_prev < 0] <- 0
   P_prev <- mean(P_prev[5,])   # This line will change after the optimization of the sample pick
-  P_prev <- base_P$xmin + P_prev * (base_P$xmax - base_P$xmin)
+  P_prev <- P_prev
 }
 
 

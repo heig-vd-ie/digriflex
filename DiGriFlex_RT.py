@@ -1,5 +1,8 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
 #### To Do lists:
+## - CM#0: The input of Cinergia must be equal to the load of school multiplied by 0.1
+## - CM#0: Figuring the output of the codes using jupyter notebook and the package plotly (using the csv recorded data).
+## - CM#0: Making a copy of data of each day in the server of school
 ## - CM#0: @DiGriFlex_DA, DiGriFlex_sim, Main_file
 ## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (function "reine_parameters()")
 ## - CM#0: @AuxiliaryFunctions: Integrating with the dayahead forecasting code of Pasquale ("forecast_defining")
@@ -8,7 +11,7 @@
 ## - CM#0: Connection of realtime code with day_ahead optimization and modifiying the optimization functions
 ## - CM#1: Finding power output from the irradiance and temperature
 ## - CM#2: Day-ahead forecasting and opt -> First solution: without weather prediction; Second solution: MeteoSwiss API
-## - CM#3: Running the test with labview
+## - CM#3: Running the test with labview (Problem of batteries)
 
 
 #### Importing packages
@@ -91,7 +94,7 @@ def interface_control_digriflex(Vec_Inp):
     Q_net = Q_SC[timestep] + random.uniform(-RQN_SC[timestep], RQP_SC[timestep])  # Uniform dist. of reserves activation
     file_to_store = open(dir_path + r"/Data/tmp.pickle", "wb")
     pickle.dump(grid_inp, file_to_store)
-    pickle.dump(400, file_to_store)  # Ligne_U[0]
+    pickle.dump(400, file_to_store)  # Ligne_U[0] * np.sqrt(3)
     pickle.dump(P_net, file_to_store)
     pickle.dump(Q_net, file_to_store)
     pickle.dump(result_p_pv, file_to_store)
@@ -135,10 +138,12 @@ def interface_control_digriflex(Vec_Inp):
     file_to_read.close()
     ## Defining outputs
     Vec_Out = [0] * 16
-    Vec_Out[0] = Battery_P_sp
-    Vec_Out[1] = Battery_Q_sp
+    Vec_Out[0] = Battery_P_sp  # Output in kW // sum of three phase
+    Vec_Out[1] = Battery_Q_sp  # Output in kVar // sum of three phase
     Vec_Out[4] = ABB_P_sp
     Vec_Out[5] = ABB_c_sp
+    Vec_Out[8] = data_rt.iloc[-1]['Pdemlag2_for'] * 0.1  # Output in kW // sum of three phase
+    Vec_Out[9] = data_rt.iloc[-1]['Qdemlag2_for'] * 0.1  # Output in kVar // sum of three phase
     return Vec_Out
 
 
@@ -262,7 +267,7 @@ def forecasting_active_power_rt(pred_for, time_step):
     N_boot = 200  # Desired number of bootstrap samples.
     ## Calling R function
     r = ro.r
-    r['source'](dir_path + r'\Functions_R\Function_LQR_Bayesboot_P.R')
+    r['source'](dir_path + r'\Functions_R\Function_LQR_Bayesboot_P_v2.R')
     LQR_Bayesboot = ro.globalenv['LQR_Bayesboot']
     with localconverter(ro.default_converter + pandas2ri.converter):
         pred_for_r = ro.conversion.py2rpy(pred_for)
@@ -285,7 +290,7 @@ def forecasting_reactive_power_rt(pred_for, time_step):
     N_boot = 200  # Desired number of bootstrap samples.
     ## Calling R function
     r = ro.r
-    r['source'](dir_path + r'\Functions_R\Function_LQR_Bayesboot_Q.R')
+    r['source'](dir_path + r'\Functions_R\Function_LQR_Bayesboot_Q_v2.R')
     LQR_Bayesboot = ro.globalenv['LQR_Bayesboot']
     with localconverter(ro.default_converter + pandas2ri.converter):
         pred_for_r = ro.conversion.py2rpy(pred_for)
