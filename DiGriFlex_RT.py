@@ -183,7 +183,7 @@ def access_data_rt():
         "FROM db_iese_2021"
     )
     mydata1 = mycursor1.fetchall()
-    myresult = pd.DataFrame.from_records(mydata1[-60 * 24 * 2:], columns=['Date and Time', 'P', 'irra'],
+    myresult = pd.DataFrame.from_records(mydata1[-60 * 24 * 3:], columns=['Date and Time', 'P', 'irra'],
                                          index=['Date and Time'])
     myresult = myresult.resample('10min').mean()
     myresult['Irralag2_for'] = myresult['irra'].shift(1)
@@ -200,7 +200,7 @@ def access_data_rt():
         "FROM Reseau_HEIG"
     )
     mydata2 = mycursor2.fetchall()
-    mydata2 = pd.DataFrame.from_records(mydata2[-4 * 24 * 2:],
+    mydata2 = pd.DataFrame.from_records(mydata2[-4 * 24 * 3:],
                                         columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'],
                                         index=['Date and Time'])
     mydata2.index = mydata2.index.floor('10min')
@@ -212,12 +212,14 @@ def access_data_rt():
         new_row = pd.DataFrame(new_row, columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'])
         new_row = new_row.set_index('Date and Time')
         mydata2 = mydata2.append(new_row, ignore_index=False)
+    myresult['Pdem'] = (mydata2['PL1'] + mydata2['PL2'] + mydata2['PL3']) / 3
     myresult['Pdemlag2_for'] = (mydata2['PL1'].shift(1) + mydata2['PL2'].shift(1) + mydata2['PL3'].shift(1)) / 3
     myresult['Pdemlag3_for'] = (mydata2['PL1'].shift(2) + mydata2['PL2'].shift(2) + mydata2['PL3'].shift(2)) / 3
     myresult['Pdemlag4_for'] = (mydata2['PL1'].shift(3) + mydata2['PL2'].shift(3) + mydata2['PL3'].shift(3)) / 3
     myresult['Pdemlag5_for'] = (mydata2['PL1'].shift(4) + mydata2['PL2'].shift(4) + mydata2['PL3'].shift(4)) / 3
     myresult['Pdemlag6_for'] = (mydata2['PL1'].shift(5) + mydata2['PL2'].shift(5) + mydata2['PL3'].shift(5)) / 3
     myresult['Pdemlag144_for'] = (mydata2['PL1'].shift(143) + mydata2['PL2'].shift(143) + mydata2['PL3'].shift(143)) / 3
+    myresult['Qdem'] = (mydata2['QL1'] + mydata2['QL2'] + mydata2['QL3']) / 3
     myresult['Qdemlag2_for'] = (mydata2['QL1'].shift(1) + mydata2['QL2'].shift(1) + mydata2['QL3'].shift(1)) / 3
     myresult['Qdemlag3_for'] = (mydata2['QL1'].shift(2) + mydata2['QL2'].shift(2) + mydata2['QL3'].shift(2)) / 3
     myresult['Qdemlag4_for'] = (mydata2['QL1'].shift(3) + mydata2['QL2'].shift(3) + mydata2['QL3'].shift(3)) / 3
@@ -237,8 +239,9 @@ def forecasting_pv_rt(pred_for, time_step):
     Inputs:
         - pred_for: a dataframe containing predictors irra(t-144),irra(t-2),irra(t-3),irra(t-4),irra(t-5),irra(t-6)
         - time_step: number of the target 10-min interval of the day.
-        - N_boot: desired number of bootstrap samples.
-    Output: result_irra: forecasted irradiance in W/m2
+    Output:
+        - result_p: forecasted power in kW
+        - result_irra: forecasted irradiance in W/m2
     """
     N_boot = 300  # Desired number of bootstrap samples.
     ## Calling R function
@@ -261,7 +264,6 @@ def forecasting_active_power_rt(pred_for, time_step):
     Inputs:
         - pred_for: a dataframe containing predictors P(t-144),P(t-2),P(t-3),P(t-4),P(t-5),P(t-6)
         - time_step: number of the target 10-min interval of the day.
-        - N_boot: desired number of bootstrap samples.
     Output: result_Pdem: forecasted active power in kW
     """
     N_boot = 200  # Desired number of bootstrap samples.
@@ -282,10 +284,9 @@ def forecasting_reactive_power_rt(pred_for, time_step):
     """" Completed:
     This function is for running the real-time forecasting R code written by Pasquale
     Inputs:
-        - pred_for: a dataframe containing predictors P(t-144),P(t-2),P(t-3),P(t-4),P(t-5),P(t-6)
+        - pred_for: a dataframe containing predictors Q(t-144),Q(t-2),Q(t-3),Q(t-4),Q(t-5),Q(t-6)
         - time_step: number of the target 10-min interval of the day.
-        - N_boot: desired number of bootstrap samples.
-    Output: result_Pdem: forecasted active power in kW
+    Output: result_Qdem: forecasted active power in kW
     """
     N_boot = 200  # Desired number of bootstrap samples.
     ## Calling R function
@@ -302,6 +303,6 @@ def forecasting_reactive_power_rt(pred_for, time_step):
 
 
 #### TESTING
-Vec_Inp0 = open(dir_path + r"\Data\test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
-Vec_Out0 = interface_control_digriflex(Vec_Inp0)
-print(Vec_Out0)
+# Vec_Inp0 = open(dir_path + r"\Data\test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
+# Vec_Out0 = interface_control_digriflex(Vec_Inp0)
+# print(Vec_Out0)
