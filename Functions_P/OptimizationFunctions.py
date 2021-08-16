@@ -3,6 +3,9 @@
 import numpy as np
 import gurobipy as gp
 import itertools
+
+import pandas as pd
+
 import Functions_P.AuxiliaryFunctions as af
 from scipy.stats import norm
 from gurobipy import *
@@ -527,15 +530,15 @@ def da_opt_digriflex(grid_inp, V_mag, forecast_pv, forecast_p_dm, forecast_q_dm,
     case_inp = {}
     meas_inp = {}
     fore_inp = {}
-    output_DF = {}
+    output_DF = pd.DataFrame()
     case_inp['LAMBDA_P_DA_EN'] = prices_vec[0][:]
     case_inp['LAMBDA_Q_DA_EN'] = prices_vec[1][:]
     case_inp['LAMBDA_P_DA_RS_pos'] = prices_vec[2][:]
     case_inp['LAMBDA_P_DA_RS_neg'] = prices_vec[3][:]
     case_inp['LAMBDA_Q_DA_RS_pos'] = prices_vec[4][:]
     case_inp['LAMBDA_Q_DA_RS_neg'] = prices_vec[5][:]
-    case_inp['Robust_prob'] = robust_par
-    case_inp['Omega_Number'] = 20
+    case_inp['Robust_prob'] = 1 - robust_par
+    case_inp['Omega_Number'] = 3
     case_inp['loss_consideration'] = 0
     meas_inp['Nt'] = 144
     meas_inp['DeltaT'] = 10 / 60
@@ -569,7 +572,7 @@ def da_opt_digriflex(grid_inp, V_mag, forecast_pv, forecast_p_dm, forecast_q_dm,
         RPN_SC = DA_result["DA_RP_neg"]
         RQP_SC = DA_result["DA_RQ_pos"]
         RQN_SC = DA_result["DA_RQ_neg"]
-        SOC_dersired = DA_result["Solution_ST_SOC"]
+        SOC_dersired = DA_result["Solution_ST_SOC"][0]
     else:
         P_SC, Q_SC = [-9] * 144, [2] * 144
         RPP_SC, RPN_SC, RQP_SC, RQN_SC = [0.4] * 144, [0.4] * 144, [0.2] * 144, [0.2] * 144
@@ -595,7 +598,7 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
     prob = case_inp['Robust_prob']
     conf_multip = 0
     if prob != 0:
-        conf_multip = norm.ppf(1 - prob)  # np.sqrt((1-prob)/prob)
+        conf_multip = np.sqrt((1-prob)/prob)  # norm.ppf(1 - prob)
     #### Main Sets
     Time_Set = range(meas_inp["Nt"])
     DeltaT = meas_inp["DeltaT"]
@@ -1263,18 +1266,18 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
         Solution_ST_P = PROB_DA.getAttr('x', ST_P)
         Solution_ST_Q = PROB_DA.getAttr('x', ST_Q)
         Solution_ST_SOC = PROB_DA.getAttr('x', ST_SOC)
-        for t in Time_Set:
-            for k in range(3):
-                for n in Node_Set:
-                    if n > 0:
-                        nn = grid_inp["buses"][n]["bus"]
-                        nn = af.find_n(nn, meas_inp["meas_location"])
-                        meas_inp["P"][nn][k][t] = sum(Solution_PV_P[i, t] * PV_Inc_Mat[i, n] for i in PV_Set) \
-                                                  + sum(Solution_ST_P[s, t] * ST_Inc_Mat[s, n] for s in ST_Set) \
-                                                  - sum(DM_P[d, t] * DM_Inc_Mat[d, n] for d in DM_Set)
-                        meas_inp["Q"][nn][k][t] = sum(Solution_PV_Q[i, t] * PV_Inc_Mat[i, n] for i in PV_Set) \
-                                                  + sum(Solution_ST_Q[s, t] * ST_Inc_Mat[s, n] for s in ST_Set) \
-                                                  - sum(DM_Q[d, t] * DM_Inc_Mat[d, n] for d in DM_Set)
+        # for t in Time_Set:
+        #     for k in range(3):
+        #         for n in Node_Set:
+        #             if n > 0:
+        #                 nn = grid_inp["buses"][n]["bus"]
+        #                 nn = af.find_n(nn, meas_inp["meas_location"])
+        #                 meas_inp["P"][nn][k][t] = sum(Solution_PV_P[i, t] * PV_Inc_Mat[i, n] for i in PV_Set) \
+        #                                           + sum(Solution_ST_P[s, t] * ST_Inc_Mat[s, n] for s in ST_Set) \
+        #                                           - sum(DM_P[d, t] * DM_Inc_Mat[d, n] for d in DM_Set)
+        #                 meas_inp["Q"][nn][k][t] = sum(Solution_PV_Q[i, t] * PV_Inc_Mat[i, n] for i in PV_Set) \
+        #                                           + sum(Solution_ST_Q[s, t] * ST_Inc_Mat[s, n] for s in ST_Set) \
+        #                                           - sum(DM_Q[d, t] * DM_Inc_Mat[d, n] for d in DM_Set)
         DA_P = PROB_DA.getAttr('x', ConPoint_P_DA_EN)
         DA_Q = PROB_DA.getAttr('x', ConPoint_Q_DA_EN)
         DA_RP_pos = PROB_DA.getAttr('x', ConPoint_P_DA_RS_pos)
@@ -1312,7 +1315,7 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
         meas["DA_Q+"] = -np.array(DA_QQ) + np.array(DA_RQQ_pos)
         meas["DA_P-"] = -np.array(DA_PP) - np.array(DA_RPP_neg)
         meas["DA_Q-"] = -np.array(DA_QQ) - np.array(DA_RQQ_neg)
-        af.figuring(grid_inp, meas_inp, meas, "DA_Offers", "robust" + str(prob))
+        af.figuring(grid_inp, meas_inp, meas, "DA_Offers", "robust" + str(1 - round(prob, 3)))
         # meas2 = af.SE_time_series(grid_inp, meas_inp, "robust"+str(prob))
         DA_result["Solution_PV_P"] = Solution_PV_PP
         DA_result["Solution_PV_Q"] = Solution_PV_QQ
@@ -1411,9 +1414,16 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
         for t in Time_Set:
             for om in Scen_Omega_Set:
                 nnn = af.find_n(nn["bus"], meas_inp["meas_location"])
-                DM_P[nn["index"]][t][om] = fore_inp["Dem_P"][nnn][t]
-                DM_Q[nn["index"]][t][om] = fore_inp["Dem_Q"][nnn][t]
-                if om > 0:
+                if om == 0:
+                    DM_P[nn["index"]][t][om] = fore_inp["Dem_P"][nnn][t]
+                    DM_Q[nn["index"]][t][om] = fore_inp["Dem_Q"][nnn][t]
+                elif om == 1:
+                    DM_P[nn["index"]][t][om] = fore_inp["Dem_P"][nnn][t] + fore_inp["Dem_P_zeta+"][nnn][t]
+                    DM_Q[nn["index"]][t][om] = fore_inp["Dem_Q"][nnn][t] + fore_inp["Dem_Q_zeta+"][nnn][t]
+                elif om == 2:
+                    DM_P[nn["index"]][t][om] = fore_inp["Dem_P"][nnn][t] - fore_inp["Dem_P_zeta-"][nnn][t]
+                    DM_Q[nn["index"]][t][om] = fore_inp["Dem_Q"][nnn][t] - fore_inp["Dem_Q_zeta-"][nnn][t]
+                elif om > 2:
                     DM_P[nn["index"]][t][om] = fore_inp["Dem_P"][nnn][t] + fore_inp["Dem_P_zeta+"][nnn][t] \
                                                - (fore_inp["Dem_P_zeta+"][nnn][t] + fore_inp["Dem_P_zeta-"][nnn][t]) \
                                                * np.random.randint(0, 2)
@@ -1439,8 +1449,15 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
         PV_cos[nn["index"]] = nn["cos_PV"]
         for t in Time_Set:
             for om in Scen_Omega_Set:
-                PV_Forecast[nn["index"]][t][om] = fore_inp["P_PV"][t] * nn["cap_kVA_perPhase"]
-                if om > 0:
+                if om == 0:
+                    PV_Forecast[nn["index"]][t][om] = fore_inp["P_PV"][t] * nn["cap_kVA_perPhase"]
+                elif om == 1:
+                    PV_Forecast[nn["index"]][t][om] = (fore_inp["P_PV"][t] - fore_inp["P_PV_zeta-"][t]) \
+                                                      * nn["cap_kVA_perPhase"]
+                elif om == 2:
+                    PV_Forecast[nn["index"]][t][om] = (fore_inp["P_PV"][t] + fore_inp["P_PV_zeta+"][t]) \
+                                                      * nn["cap_kVA_perPhase"]
+                elif om > 2:
                     PV_Forecast[nn["index"]][t][om] = (fore_inp["P_PV"][t] + fore_inp["P_PV_zeta+"][t]
                                                        - (fore_inp["P_PV_zeta+"][t] + fore_inp["P_PV_zeta-"][t])
                                                        * np.random.randint(0, 2)) * nn["cap_kVA_perPhase"]
@@ -1466,8 +1483,13 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
         ST_Eff_neg[nn["index"]] = nn["Eff_D"]
         ST_Eff_LC[nn["index"]] = nn["Eff_LC"]
         for om in Scen_Omega_Set:
-            ST_SOC_0[nn["index"]][om] = nn["SOC_max_kWh"] * fore_inp["ST_SOC_0"]
-            if om > 0:
+            if om == 0:
+                ST_SOC_0[nn["index"]][om] = nn["SOC_max_kWh"] * fore_inp["ST_SOC_0"]
+            elif om == 1:
+                ST_SOC_0[nn["index"]][om] = nn["SOC_max_kWh"] * fore_inp["ST_SOC_0"] * (1 - fore_inp["ST_SOC_zeta-"])
+            elif om == 2:
+                ST_SOC_0[nn["index"]][om] = nn["SOC_max_kWh"] * fore_inp["ST_SOC_0"] * (1 + fore_inp["ST_SOC_zeta+"])
+            elif om > 2:
                 ST_SOC_0[nn["index"]][om] = ST_SOC_0[nn["index"]][om] * (1 + fore_inp["ST_SOC_zeta+"]
                                                                          - (fore_inp["ST_SOC_zeta+"]
                                                                             + fore_inp["ST_SOC_zeta-"])
@@ -1485,8 +1507,25 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
         ConPoint_Inc_Mat[nn["index"], af.find_n(nn["bus"], grid_inp["buses"])] = 1
         for t in Time_Set:
             for om in Scen_Omega_Set:
-                ConPoint_Vmag[nn["index"]][t][om] = 1.0
-                if om > 0:
+                if om == 0:
+                    ConPoint_Vmag[nn["index"]][t][om] = 1.0
+                    ConPoint_fac_P_pos[nn["index"]][t][om] = 0
+                    ConPoint_fac_P_neg[nn["index"]][t][om] = 0
+                    ConPoint_fac_Q_pos[nn["index"]][t][om] = 0
+                    ConPoint_fac_Q_neg[nn["index"]][t][om] = 0
+                elif om == 1:
+                    ConPoint_Vmag[nn["index"]][t][om] = 1.0 - fore_inp["Vmag_zeta-"][t]
+                    ConPoint_fac_P_pos[nn["index"]][t][om] = 1
+                    ConPoint_fac_P_neg[nn["index"]][t][om] = 0
+                    ConPoint_fac_Q_pos[nn["index"]][t][om] = 1
+                    ConPoint_fac_Q_neg[nn["index"]][t][om] = 0
+                elif om == 2:
+                    ConPoint_Vmag[nn["index"]][t][om] = 1.0 + fore_inp["Vmag_zeta+"][t]
+                    ConPoint_fac_P_pos[nn["index"]][t][om] = 0
+                    ConPoint_fac_P_neg[nn["index"]][t][om] = 1
+                    ConPoint_fac_Q_pos[nn["index"]][t][om] = 0
+                    ConPoint_fac_Q_neg[nn["index"]][t][om] = 1
+                elif om > 2:
                     ConPoint_fac_P_pos[nn["index"]][t][om] = np.random.randint(0, 2)
                     ConPoint_fac_P_neg[nn["index"]][t][om] = 1 - ConPoint_fac_P_pos[nn["index"]][t][om]
                     ConPoint_fac_Q_pos[nn["index"]][t][om] = np.random.randint(0, 2)
@@ -1546,8 +1585,8 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
     ConPoint_P_dev_neg = PROB_DA.addVars(ConPoint_Set, Time_Set, Scen_Omega_Set, lb=0, ub=Big_M)
     ConPoint_Q_dev_pos = PROB_DA.addVars(ConPoint_Set, Time_Set, Scen_Omega_Set, lb=0, ub=Big_M)
     ConPoint_Q_dev_neg = PROB_DA.addVars(ConPoint_Set, Time_Set, Scen_Omega_Set, lb=0, ub=Big_M)
-    OBJ_DA_MARKET = PROB_DA.addVars(ConPoint_Set, Time_Set, lb=-Big_M, ub=Big_M)
-    OBJ_Loss = PROB_DA.addVars(Line_Set, Time_Set, Scen_Omega_Set, lb=-Big_M, ub=Big_M)
+    OBJ_DA_MARKET = PROB_DA.addVars(ConPoint_Set, Time_Set)
+    OBJ_Loss = PROB_DA.addVars(Line_Set, Time_Set, Scen_Omega_Set)
     ### Defning Constraints
     for t, om in itertools.product(Time_Set, Scen_Omega_Set):
         for nn in Node_Set:
@@ -1749,7 +1788,9 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
                               + LAMBDA_P_DA_RS_neg[t] * ConPoint_P_DA_RS_neg[f, t]
                               + LAMBDA_Q_DA_RS_pos[t] * ConPoint_Q_DA_RS_pos[f, t]
                               + LAMBDA_Q_DA_RS_neg[t] * ConPoint_Q_DA_RS_neg[f, t]
-                              - Big_M * sum(ConPoint_P_dev_pos[f, t, om] + ConPoint_P_dev_neg[f, t, om]
+                              - max([LAMBDA_P_DA_EN[t], LAMBDA_Q_DA_EN[t], LAMBDA_P_DA_RS_pos[t], LAMBDA_P_DA_RS_neg[t],
+                                     LAMBDA_Q_DA_RS_pos[t], LAMBDA_Q_DA_RS_neg[t]]) * 10
+                              * sum(ConPoint_P_dev_pos[f, t, om] + ConPoint_P_dev_neg[f, t, om]
                                             + ConPoint_Q_dev_pos[f, t, om] + ConPoint_Q_dev_neg[f, t, om]
                                             for om in Scen_Omega_Set))
             # constraints for defining deployed reserves
@@ -1761,7 +1802,7 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
                               - ConPoint_fac_Q_pos[f, t, om] * ConPoint_Q_DA_RS_pos[f, t]
                               + ConPoint_fac_Q_neg[f, t, om] * ConPoint_Q_DA_RS_neg[f, t]
                               - ConPoint_Q_dev_pos[f, t, om] + ConPoint_Q_dev_neg[f, t, om])
-            # slack bus definition
+            # # slack bus definition
             PROB_DA.addConstr(sum(Vmag_sq[nn, t, om] * ConPoint_Inc_Mat[f, nn] for nn in Node_Set)
                               == ConPoint_Vmag[f, t, om] * ConPoint_Vmag[f, t, om])
             PROB_DA.addConstr(ConPoint_P_DA_RS_pos[f, t] <= Line_Smax[0, 1] / 2)
@@ -1786,18 +1827,18 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
         Solution_ST_P = PROB_DA.getAttr('x', ST_P)
         Solution_ST_Q = PROB_DA.getAttr('x', ST_Q)
         Solution_ST_SOC = PROB_DA.getAttr('x', ST_SOC)
-        for t in Time_Set:
-            for k in range(3):
-                for nn in Node_Set:
-                    if nn > 0:
-                        nnn = grid_inp["buses"][nn]["bus"]
-                        nnn = af.find_n(nnn, meas_inp["meas_location"])
-                        meas_inp["P"][nnn][k][t] = sum(Solution_PV_P[i, t, 0] * PV_Inc_Mat[i, nn] for i in PV_Set) \
-                                                   + sum(Solution_ST_P[s, t, 0] * ST_Inc_Mat[s, nn] for s in ST_Set) \
-                                                   - sum(DM_P[d, t, 0] * DM_Inc_Mat[d, nn] for d in DM_Set)
-                        meas_inp["Q"][nnn][k][t] = sum(Solution_PV_Q[i, t, 0] * PV_Inc_Mat[i, nn] for i in PV_Set) \
-                                                   + sum(Solution_ST_Q[s, t, 0] * ST_Inc_Mat[s, nn] for s in ST_Set) \
-                                                   - sum(DM_Q[d, t, 0] * DM_Inc_Mat[d, nn] for d in DM_Set)
+        # for t in Time_Set:
+        #     for k in range(3):
+        #         for nn in Node_Set:
+        #             if nn > 0:
+        #                 nnn = grid_inp["buses"][nn]["bus"]
+        #                 nnn = af.find_n(nnn, meas_inp["meas_location"])
+        #                 meas_inp["P"][nnn][k][t] = sum(Solution_PV_P[i, t, 0] * PV_Inc_Mat[i, nn] for i in PV_Set) \
+        #                                            + sum(Solution_ST_P[s, t, 0] * ST_Inc_Mat[s, nn] for s in ST_Set) \
+        #                                            - sum(DM_P[d, t, 0] * DM_Inc_Mat[d, nn] for d in DM_Set)
+        #                 meas_inp["Q"][nnn][k][t] = sum(Solution_PV_Q[i, t, 0] * PV_Inc_Mat[i, nn] for i in PV_Set) \
+        #                                            + sum(Solution_ST_Q[s, t, 0] * ST_Inc_Mat[s, nn] for s in ST_Set) \
+        #                                            - sum(DM_Q[d, t, 0] * DM_Inc_Mat[d, nn] for d in DM_Set)
         DA_P = PROB_DA.getAttr('x', ConPoint_P_DA_EN)
         DA_Q = PROB_DA.getAttr('x', ConPoint_Q_DA_EN)
         DA_RP_pos = PROB_DA.getAttr('x', ConPoint_P_DA_RS_pos)
@@ -1822,7 +1863,7 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
         meas["DA_Q+"] = -np.array(DA_QQ) + np.array(DA_RQQ_pos)
         meas["DA_P-"] = -np.array(DA_PP) - np.array(DA_RPP_neg)
         meas["DA_Q-"] = -np.array(DA_QQ) - np.array(DA_RQQ_neg)
-        af.figuring(grid_inp, meas_inp, meas, "DA_Offers", case_name)
+        af.figuring(grid_inp, meas_inp, meas, "DA_Offers", "stochastic")
         # meas2 = af.SE_time_series(grid_inp, meas_inp, case_name)
         DA_result["Solution_PV_P"] = Solution_PV_PP
         DA_result["Solution_PV_Q"] = Solution_PV_QQ

@@ -1,19 +1,4 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
-#### To Do lists:
-## - CM#0: The input of Cinergia must be equal to the load of school multiplied by 0.1
-## - CM#0: Figuring the output of the codes using jupyter notebook and the package plotly (using the csv recorded data).
-## - CM#0: Making a copy of data of each day in the server of school
-## - CM#0: @DiGriFlex_DA, DiGriFlex_sim, Main_file
-## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (function "reine_parameters()")
-## - CM#0: @AuxiliaryFunctions: Integrating with the dayahead forecasting code of Pasquale ("forecast_defining")
-## - CM#0: @AuxiliaryFunctions: remained reviewing from functions "rt_simulation"
-## - CM#0: @OptimizationFunctions: remained reviewing from functions "DA_Optimization_Robust"
-## - CM#0: Connection of realtime code with day_ahead optimization and modifiying the optimization functions
-## - CM#1: Finding power output from the irradiance and temperature
-## - CM#2: Day-ahead forecasting and opt -> First solution: without weather prediction; Second solution: MeteoSwiss API
-## - CM#3: Running the test with labview (Problem of batteries)
-
-
 #### Importing packages
 import os
 import sys
@@ -46,7 +31,9 @@ def interface_control_digriflex(Vec_Inp):
     Q Cinergia, P1 SOP, Q1 SOP, P2 SOP, Q2 SOP, P GM, Q GM]
     """
     ## Reading inputs
-    file_to_read = open(dir_path + r"/Data/tmp_da.pickle", "rb")
+    now = datetime.now()
+    today = str(now.year) + str(now.month) + str(now.day)
+    file_to_read = open(dir_path + r"/Result/res" + today + ".pickle", "rb")
     P_SC = pickle.load(file_to_read)
     Q_SC = pickle.load(file_to_read)
     RPP_SC = pickle.load(file_to_read)
@@ -87,12 +74,12 @@ def interface_control_digriflex(Vec_Inp):
                         round(result_p_pv, 5), round(result_irra, 2),
                         round(result_p_dm, 5), round(result_q_dm, 5)
                         ]])
-    df.to_csv(dir_path + r'\Data\recorded_forecast.csv', mode='a', header=False)
+    df.to_csv(dir_path + r'\Result\realtime_forecast.csv', mode='a', header=False)
     ####################################################################################
     grid_inp = af.grid_topology_sim(network_name, Vec_Inp)
     P_net = P_SC[timestep] + random.uniform(-RPN_SC[timestep], RPP_SC[timestep])  # Uniform dist. of reserves activation
     Q_net = Q_SC[timestep] + random.uniform(-RQN_SC[timestep], RQP_SC[timestep])  # Uniform dist. of reserves activation
-    file_to_store = open(dir_path + r"/Data/tmp.pickle", "wb")
+    file_to_store = open(dir_path + r"/Result/tmp_rt.pickle", "wb")
     pickle.dump(grid_inp, file_to_store)
     pickle.dump(400, file_to_store)  # Ligne_U[0] * np.sqrt(3)
     pickle.dump(P_net, file_to_store)
@@ -108,7 +95,7 @@ def interface_control_digriflex(Vec_Inp):
               'print(sys.version);' +
               'sys.path.insert(0, r\'' + dir_path + '\');'
                                                     'import pickle;' +
-              'file_to_read = open(r\'' + dir_path + '\' + r\'/Data/tmp.pickle\', \'rb\');' +
+              'file_to_read = open(r\'' + dir_path + '\' + r\'/Result/tmp_rt.pickle\', \'rb\');' +
               'grid_inp = pickle.load(file_to_read);' +
               'V_mag = pickle.load(file_to_read);' +
               'P_net = pickle.load(file_to_read);' +
@@ -123,14 +110,14 @@ def interface_control_digriflex(Vec_Inp):
               'ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp = ' +
               'of.rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SOC, SOC_desired, prices_vec);'
               # 'of.rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC);' +  # this function will be changed
-              'file_to_store = open(r\'' + dir_path + '\' + r\'/Data/tmp.pickle\', \'wb\');' +
+              'file_to_store = open(r\'' + dir_path + '\' + r\'/Result/tmp_rt.pickle\', \'wb\');' +
               'pickle.dump(ABB_P_sp, file_to_store);' +
               'pickle.dump(ABB_c_sp, file_to_store);' +
               'pickle.dump(Battery_P_sp, file_to_store);' +
               'pickle.dump(Battery_Q_sp, file_to_store);' +
               'file_to_store.close()\"'
               )
-    file_to_read = open(dir_path + r"/Data/tmp.pickle", "rb")
+    file_to_read = open(dir_path + r"/Result/tmp_rt.pickle", "rb")
     ABB_P_sp = pickle.load(file_to_read)
     ABB_c_sp = pickle.load(file_to_read)
     Battery_P_sp = pickle.load(file_to_read)

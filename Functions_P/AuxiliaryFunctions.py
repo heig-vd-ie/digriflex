@@ -3,6 +3,10 @@
 
 #### Importing packages
 import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from datetime import datetime, timedelta
+import os
 
 
 def reine_parameters():
@@ -873,6 +877,143 @@ def sim_loadflow_time_series(grid_inp, meas_inp, title):
     return meas
 
 
+def figuring(grid_inp, meas_inp, meas, fig_type, title):
+    """" Completed: This function is used for figuring
+    """
+    w, h = 10, 4
+    plt.style.use('bmh')
+    plt.rcParams['font.family'] = "sans-serif"
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    plt.rc('xtick', labelsize=18)
+    plt.rc('ytick', labelsize=18)
+    times = pd.date_range('01-01-2018', periods=meas_inp["Nt"], freq='10MIN')
+    x_lab = times.strftime('%H:%M')
+    times = pd.date_range('01-01-2018 02:00', periods=6, freq='4H')
+    x_tik = times.strftime('%H:%M')
+    if fig_type == "Power":
+        fig_n = 1
+        Figure = {"fig_" + str(fig_n): plt.figure()}
+        Figure["fig_" + str(fig_n)].set_figheight(h * 2)
+        Figure["fig_" + str(fig_n)].set_figwidth(w)
+        Figure["ax_" + str(fig_n) + "_1"] = Figure["fig_" + str(fig_n)].add_subplot(2, 1, 1)
+        Figure["ax_" + str(fig_n) + "_2"] = Figure["fig_" + str(fig_n)].add_subplot(2, 1, 2)
+        Figure["ax_" + str(fig_n) + "_1"].set_title(title, fontsize=18)
+        Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, - meas["P_in"][0:(meas_inp["Nt"])] / 1000,
+                                               label='With Control', linewidth=2, linestyle='-')
+        Figure["ax_" + str(fig_n) + "_1"].set_ylabel("$P_{CP}$ (kW)", fontsize=18)
+        Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, - meas["Q_in"][0:(meas_inp["Nt"])] / 1000,
+                                               label='With Control', linewidth=2, linestyle='-')
+        Figure["ax_" + str(fig_n) + "_2"].set_xlabel("time", fontsize=18)
+        Figure["ax_" + str(fig_n) + "_2"].set_ylabel("$Q_{CP}$ (kVar)", fontsize=18)
+        if meas_inp["meas"] is True:
+            Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, np.abs(meas_inp["P_CP"][0:(meas_inp["Nt"])]),
+                                                   label='Without Control', linewidth=2, linestyle='--')
+            Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, np.abs(meas_inp["Q_CP"][0:(meas_inp["Nt"])]),
+                                                   label='Without Control', linewidth=2, linestyle='--')
+        Figure["ax_" + str(fig_n) + "_1"].legend(fontsize=18)
+        Figure["ax_" + str(fig_n) + "_2"].legend(fontsize=18)
+        plt.sca(Figure["ax_" + str(fig_n) + "_1"])
+        plt.xticks(x_tik, x_tik)
+        plt.sca(Figure["ax_" + str(fig_n) + "_2"])
+        plt.xticks(x_tik, x_tik)
+    elif fig_type == "Voltages":
+        fig_n = 2
+        Figure = {"fig_" + str(fig_n): plt.figure()}
+        Figure["fig_" + str(fig_n)].set_figheight(h * np.size(grid_inp["buses"], 0))
+        Figure["fig_" + str(fig_n)].set_figwidth(w)
+        for nn in range((np.size(grid_inp["buses"], 0))):
+            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)] = Figure["fig_" + str(fig_n)].add_subplot(
+                np.size(grid_inp["buses"], 0), 1, nn + 1)
+            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].plot(x_lab,
+                                                                (meas["V"][nn][0][0:(meas_inp["Nt"])]
+                                                                 + meas["V"][nn][1][0:(meas_inp["Nt"])]
+                                                                 + meas["V"][nn][2][0:(meas_inp["Nt"])]) / 3,
+                                                                label='With Control', linewidth=2, linestyle='-')
+            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].set_ylabel("$V_{}$".format(nn) + "(V)", fontsize=18)
+            plt.sca(Figure["ax_" + str(fig_n) + "_" + str(nn + 1)])
+            plt.xticks(x_tik, x_tik)
+        Figure["ax_" + str(fig_n) + "_" + str(1)].set_title(title, fontsize=18)
+        Figure["ax_" + str(fig_n) + "_" + str(1)].set_xlabel("time", fontsize=18)
+        if meas_inp["meas"] is True:
+            for n in range(meas_inp["meas_number"]):
+                nn = find_n(meas_inp["meas_location"][n]["to"], grid_inp["buses"])
+                Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].plot(x_lab,
+                                                                    (meas_inp["V_CP"][n][0][0:(meas_inp["Nt"])]
+                                                                     + meas_inp["V_CP"][n][1][0:(meas_inp["Nt"])]
+                                                                     + meas_inp["V_CP"][n][2][0:(meas_inp["Nt"])]) / 3,
+                                                                    label='Without Control', linewidth=2,
+                                                                    linestyle='--')
+                Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].legend(fontsize=18)
+    elif fig_type == "Currents":
+        fig_n = 3
+        Figure = {"fig_" + str(fig_n): plt.figure()}
+        Figure["fig_" + str(fig_n)].set_figheight(h * np.size(grid_inp["lines"], 0))
+        Figure["fig_" + str(fig_n)].set_figwidth(w)
+        for n in range(np.size(grid_inp["lines"], 0)):
+            Figure["ax_" + str(fig_n) + "_" + str(n + 1)] = Figure["fig_" + str(fig_n)].add_subplot(
+                np.size(grid_inp["lines"], 0), 1, n + 1)
+            Figure["ax_" + str(fig_n) + "_" + str(n + 1)].plot(x_lab,
+                                                               meas["I"][n][0][0:(meas_inp["Nt"])]
+                                                               + meas["I"][n][1][0:(meas_inp["Nt"])]
+                                                               + meas["I"][n][2][0:(meas_inp["Nt"])],
+                                                               label='With Control', linewidth=2, linestyle='-')
+            Figure["ax_" + str(fig_n) + "_" + str(n + 1)].set_ylabel("$I_{}$".format(n + 1) + "(A)", fontsize=18)
+            plt.sca(Figure["ax_" + str(fig_n) + "_" + str(n + 1)])
+            plt.xticks(x_tik, x_tik)
+        Figure["ax_" + str(fig_n) + "_" + str(1)].set_title(title, fontsize=18)
+        Figure["ax_" + str(fig_n) + "_" + str(1)].set_xlabel("time", fontsize=18)
+        if meas_inp["meas"] is True:
+            for n in range(meas_inp["meas_number"]):
+                if meas_inp["meas_location"][n]["tran/line"] == "line":
+                    nn = find_n(meas_inp["meas_location"][n]["to"], grid_inp["lines"])
+                    Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].plot(x_lab,
+                                                                        np.abs(
+                                                                            meas_inp["I_CP"][n][0][0:(meas_inp["Nt"])]
+                                                                            + meas_inp["I_CP"][n][1][0:(meas_inp["Nt"])]
+                                                                            + meas_inp["I_CP"][n][2][
+                                                                              0:(meas_inp["Nt"])]),
+                                                                        label='Without Control', linewidth=2,
+                                                                        linestyle='--')
+                    Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].legend(fontsize=18)
+    elif fig_type == "DA_Offers":
+        fig_n = 4
+        Figure = {"fig_" + str(fig_n): plt.figure()}
+        Figure["fig_" + str(fig_n)].set_figheight(h * 2)
+        Figure["fig_" + str(fig_n)].set_figwidth(w)
+        Figure["ax_" + str(fig_n) + "_1"] = Figure["fig_" + str(fig_n)].add_subplot(2, 1, 1)
+        Figure["ax_" + str(fig_n) + "_2"] = Figure["fig_" + str(fig_n)].add_subplot(2, 1, 2)
+        # Figure["ax_" + str(fig_n) + "_1"].set_title(title, fontsize=18)
+        Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, meas["DA_PP"][0:(meas_inp["Nt"])],
+                                               label='$p_{t}^{(DA)}$', linewidth=2, linestyle='-')
+        Figure["ax_" + str(fig_n) + "_1"].set_ylabel("Active power (kW)", fontsize=18)
+        Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, meas["DA_QQ"][0:(meas_inp["Nt"])],
+                                               label='$q_{t}^{(DA)}$', linewidth=2, linestyle='-')
+        Figure["ax_" + str(fig_n) + "_2"].set_xlabel("time", fontsize=18)
+        Figure["ax_" + str(fig_n) + "_2"].set_ylabel("Reactive power (kVAR)", fontsize=18)
+        Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, meas["DA_P+"][0:(meas_inp["Nt"])],
+                                               label='$p_{t}^{(DA)}+r_t^{(p\u2191)}$', linewidth=2, linestyle='--')
+        Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, meas["DA_Q+"][0:(meas_inp["Nt"])],
+                                               label='$q_{t}^{(DA)}+r_t^{(q\u2191)}$', linewidth=2, linestyle='--')
+        Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, meas["DA_P-"][0:(meas_inp["Nt"])],
+                                               label='$p_{t}^{(DA)}-r_t^{(p\u2193)}$', linewidth=2, linestyle=':')
+        Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, meas["DA_Q-"][0:(meas_inp["Nt"])],
+                                               label='$q_{t}^{(DA)}-r_t^{(q\u2193)}$', linewidth=2, linestyle=':')
+        Figure["ax_" + str(fig_n) + "_1"].legend(fontsize=18, ncol=3, loc='upper center', bbox_to_anchor=(0.5, 1.29))
+        Figure["ax_" + str(fig_n) + "_2"].legend(fontsize=18, ncol=3, loc='upper center', bbox_to_anchor=(0.5, 1.29))
+        # Figure["ax_" + str(fig_n) + "_2"].legend().set_visible(False)
+        plt.sca(Figure["ax_" + str(fig_n) + "_1"])
+        plt.xticks(x_tik, x_tik)
+        plt.sca(Figure["ax_" + str(fig_n) + "_2"])
+        plt.xticks(x_tik, x_tik)
+        plt.subplots_adjust(hspace=0.4)
+    if True:
+        now = datetime.now()
+        tomorrow = str(now.year) + str(now.month) + str(now.day + 1)
+        plt.savefig(os.path.join('Figures',
+                                 title.replace('\\', '').replace('$', '').replace('.', '') + '_' + tomorrow + '.pdf'),
+                    bbox_inches='tight')
+
+
 def forecast_defining(pv_hist, dem_P_hist, dem_Q_hist):
     """" Not Completed: CM#0
     This function is used to make the forecast input of
@@ -986,135 +1127,6 @@ def rt_simulation(grid_inp, meas_inp, fore_inp, DA_result, t):
         rt_meas_inp["ConPoint_Q_DA_RS_pos"][f] = DA_result["DA_RQ_pos"][t]
         rt_meas_inp["ConPoint_Q_DA_RS_neg"][f] = DA_result["DA_RQ_neg"][t]
     return rt_meas_inp
-
-
-def figuring(grid_inp, meas_inp, meas, fig_type, title):
-    w, h = 10, 4
-    plt.style.use('bmh')
-    plt.rcParams['font.family'] = "sans-serif"
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
-    plt.rc('xtick', labelsize=18)
-    plt.rc('ytick', labelsize=18)
-    times = pd.date_range('01-01-2018', periods=meas_inp["Nt"], freq='10MIN')
-    x_lab = times.strftime('%H:%M')
-    times = pd.date_range('01-01-2018 02:00', periods=6, freq='4H')
-    x_tik = times.strftime('%H:%M')
-    if fig_type == "Power":
-        fig_n = 1
-        Figure = {"fig_" + str(fig_n): plt.figure()}
-        Figure["fig_" + str(fig_n)].set_figheight(h * 2)
-        Figure["fig_" + str(fig_n)].set_figwidth(w)
-        Figure["ax_" + str(fig_n) + "_1"] = Figure["fig_" + str(fig_n)].add_subplot(2, 1, 1)
-        Figure["ax_" + str(fig_n) + "_2"] = Figure["fig_" + str(fig_n)].add_subplot(2, 1, 2)
-        Figure["ax_" + str(fig_n) + "_1"].set_title(title, fontsize=18)
-        Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, - meas["P_in"][0:(meas_inp["Nt"])] / 1000,
-                                               label='With Control', linewidth=2, linestyle='-')
-        Figure["ax_" + str(fig_n) + "_1"].set_ylabel("$P_{CP}$ (kW)", fontsize=18)
-        Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, - meas["Q_in"][0:(meas_inp["Nt"])] / 1000,
-                                               label='With Control', linewidth=2, linestyle='-')
-        Figure["ax_" + str(fig_n) + "_2"].set_xlabel("time", fontsize=18)
-        Figure["ax_" + str(fig_n) + "_2"].set_ylabel("$Q_{CP}$ (kVar)", fontsize=18)
-        if meas_inp["meas"] is True:
-            Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, np.abs(meas_inp["P_CP"][0:(meas_inp["Nt"])]),
-                                                   label='Without Control', linewidth=2, linestyle='--')
-            Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, np.abs(meas_inp["Q_CP"][0:(meas_inp["Nt"])]),
-                                                   label='Without Control', linewidth=2, linestyle='--')
-        Figure["ax_" + str(fig_n) + "_1"].legend(fontsize=18)
-        Figure["ax_" + str(fig_n) + "_2"].legend(fontsize=18)
-        plt.sca(Figure["ax_" + str(fig_n) + "_1"])
-        plt.xticks(x_tik, x_tik)
-        plt.sca(Figure["ax_" + str(fig_n) + "_2"])
-        plt.xticks(x_tik, x_tik)
-    elif fig_type == "Voltages":
-        fig_n = 2
-        Figure = {"fig_" + str(fig_n): plt.figure()}
-        Figure["fig_" + str(fig_n)].set_figheight(h * np.size(grid_inp["buses"], 0))
-        Figure["fig_" + str(fig_n)].set_figwidth(w)
-        for nn in range((np.size(grid_inp["buses"], 0))):
-            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)] = Figure["fig_" + str(fig_n)].add_subplot(
-                np.size(grid_inp["buses"], 0), 1, nn + 1)
-            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].plot(x_lab,
-                                                                (meas["V"][nn][0][0:(meas_inp["Nt"])]
-                                                                 + meas["V"][nn][1][0:(meas_inp["Nt"])]
-                                                                 + meas["V"][nn][2][0:(meas_inp["Nt"])]) / 3,
-                                                                label='With Control', linewidth=2, linestyle='-')
-            Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].set_ylabel("$V_{}$".format(nn) + "(V)", fontsize=18)
-            plt.sca(Figure["ax_" + str(fig_n) + "_" + str(nn + 1)])
-            plt.xticks(x_tik, x_tik)
-        Figure["ax_" + str(fig_n) + "_" + str(1)].set_title(title, fontsize=18)
-        Figure["ax_" + str(fig_n) + "_" + str(1)].set_xlabel("time", fontsize=18)
-        if meas_inp["meas"] is True:
-            for n in range(meas_inp["meas_number"]):
-                nn = find_n(meas_inp["meas_location"][n]["to"], grid_inp["buses"])
-                Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].plot(x_lab,
-                                                                    (meas_inp["V_CP"][n][0][0:(meas_inp["Nt"])]
-                                                                     + meas_inp["V_CP"][n][1][0:(meas_inp["Nt"])]
-                                                                     + meas_inp["V_CP"][n][2][0:(meas_inp["Nt"])]) / 3,
-                                                                    label='Without Control', linewidth=2,
-                                                                    linestyle='--')
-                Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].legend(fontsize=18)
-    elif fig_type == "Currents":
-        fig_n = 3
-        Figure = {"fig_" + str(fig_n): plt.figure()}
-        Figure["fig_" + str(fig_n)].set_figheight(h * np.size(grid_inp["lines"], 0))
-        Figure["fig_" + str(fig_n)].set_figwidth(w)
-        for n in range(np.size(grid_inp["lines"], 0)):
-            Figure["ax_" + str(fig_n) + "_" + str(n + 1)] = Figure["fig_" + str(fig_n)].add_subplot(
-                np.size(grid_inp["lines"], 0), 1, n + 1)
-            Figure["ax_" + str(fig_n) + "_" + str(n + 1)].plot(x_lab,
-                                                               meas["I"][n][0][0:(meas_inp["Nt"])]
-                                                               + meas["I"][n][1][0:(meas_inp["Nt"])]
-                                                               + meas["I"][n][2][0:(meas_inp["Nt"])],
-                                                               label='With Control', linewidth=2, linestyle='-')
-            Figure["ax_" + str(fig_n) + "_" + str(n + 1)].set_ylabel("$I_{}$".format(n + 1) + "(A)", fontsize=18)
-            plt.sca(Figure["ax_" + str(fig_n) + "_" + str(n + 1)])
-            plt.xticks(x_tik, x_tik)
-        Figure["ax_" + str(fig_n) + "_" + str(1)].set_title(title, fontsize=18)
-        Figure["ax_" + str(fig_n) + "_" + str(1)].set_xlabel("time", fontsize=18)
-        if meas_inp["meas"] is True:
-            for n in range(meas_inp["meas_number"]):
-                if meas_inp["meas_location"][n]["tran/line"] == "line":
-                    nn = find_n(meas_inp["meas_location"][n]["to"], grid_inp["lines"])
-                    Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].plot(x_lab,
-                                                                        np.abs(
-                                                                            meas_inp["I_CP"][n][0][0:(meas_inp["Nt"])]
-                                                                            + meas_inp["I_CP"][n][1][0:(meas_inp["Nt"])]
-                                                                            + meas_inp["I_CP"][n][2][
-                                                                              0:(meas_inp["Nt"])]),
-                                                                        label='Without Control', linewidth=2,
-                                                                        linestyle='--')
-                    Figure["ax_" + str(fig_n) + "_" + str(nn + 1)].legend(fontsize=18)
-    elif fig_type == "DA_Offers":
-        fig_n = 4
-        Figure = {"fig_" + str(fig_n): plt.figure()}
-        Figure["fig_" + str(fig_n)].set_figheight(h * 2)
-        Figure["fig_" + str(fig_n)].set_figwidth(w)
-        Figure["ax_" + str(fig_n) + "_1"] = Figure["fig_" + str(fig_n)].add_subplot(2, 1, 1)
-        Figure["ax_" + str(fig_n) + "_2"] = Figure["fig_" + str(fig_n)].add_subplot(2, 1, 2)
-        Figure["ax_" + str(fig_n) + "_1"].set_title(title, fontsize=18)
-        Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, meas["DA_PP"][0:(meas_inp["Nt"])],
-                                               label='$p_{t}^{(DA)}$', linewidth=2, linestyle='-')
-        Figure["ax_" + str(fig_n) + "_1"].set_ylabel("Active power (kW)", fontsize=18)
-        Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, meas["DA_QQ"][0:(meas_inp["Nt"])],
-                                               label='$q_{t}^{(DA)}$', linewidth=2, linestyle='-')
-        Figure["ax_" + str(fig_n) + "_2"].set_xlabel("time", fontsize=18)
-        Figure["ax_" + str(fig_n) + "_2"].set_ylabel("Reactive power (kVAR)", fontsize=18)
-        Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, meas["DA_P+"][0:(meas_inp["Nt"])],
-                                               label='$p_{t}^{(DA)}+r_t^{(p\u2191)}$', linewidth=2, linestyle='--')
-        Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, meas["DA_Q+"][0:(meas_inp["Nt"])],
-                                               label='$q_{t}^{(DA)}+r_t^{(q\u2191)}$', linewidth=2, linestyle='--')
-        Figure["ax_" + str(fig_n) + "_1"].plot(x_lab, meas["DA_P-"][0:(meas_inp["Nt"])],
-                                               label='$p_{t}^{(DA)}-r_t^{(p\u2193)}$', linewidth=2, linestyle=':')
-        Figure["ax_" + str(fig_n) + "_2"].plot(x_lab, meas["DA_Q-"][0:(meas_inp["Nt"])],
-                                               label='$q_{t}^{(DA)}-r_t^{(q\u2193)}$', linewidth=2, linestyle=':')
-        Figure["ax_" + str(fig_n) + "_1"].legend(fontsize=18)
-        Figure["ax_" + str(fig_n) + "_2"].legend(fontsize=18)
-        plt.sca(Figure["ax_" + str(fig_n) + "_1"])
-        plt.xticks(x_tik, x_tik)
-        plt.sca(Figure["ax_" + str(fig_n) + "_2"])
-        plt.xticks(x_tik, x_tik)
-    if True:
-        plt.savefig('./Figures/' + title + '_' + fig_type + '.pdf', bbox_inches='tight')
 
 
 def cases_load_sim(Cases_Name, Scen_num):
