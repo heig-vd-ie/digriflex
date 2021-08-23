@@ -177,4 +177,4 @@ def forecasting_reactive_power_da(pred_for):
 
 
 #### TESTING
-# dayahead_digriflex(1)
+dayahead_digriflex(1)

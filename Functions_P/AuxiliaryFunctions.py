@@ -668,8 +668,10 @@ def interface_meas(Vec_inp):
     Ligne_Q[6] = (float(Vec_inp[338]) + float(Vec_inp[339]) + float(Vec_inp[340])) / 1000
     Ligne_Q[7] = (float(Vec_inp[341]) + float(Vec_inp[342]) + float(Vec_inp[343])) / 1000
     Ligne_Q[8] = (float(Vec_inp[344]) + float(Vec_inp[345]) + float(Vec_inp[346])) / 1000
+    F_P = (float(Vec_inp[347]) + float(Vec_inp[348]) + float(Vec_inp[349])) / 1000
+    F_Q = (float(Vec_inp[350]) + float(Vec_inp[351]) + float(Vec_inp[352])) / 1000
     SOC = float(Vec_inp[383])
-    return Switches, Ligne_U, Ligne_I, Charge_I, Ond_I, Charge_P, Charge_Q, Ond_P, Ond_Q, Ligne_P, Ligne_Q, SOC
+    return Switches, Ligne_U, Ligne_I, Charge_I, Ond_I, Charge_P, Charge_Q, Ond_P, Ond_Q, Ligne_P, Ligne_Q, SOC, F_P, F_Q
 
 
 def sim_meas_time_series(data_name, grid_formers):

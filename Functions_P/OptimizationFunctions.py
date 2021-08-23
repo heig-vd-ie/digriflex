@@ -47,7 +47,9 @@ def rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC
         ABB_c_sp, _ = af.find_nearest([-0.89, 0.89], np.sign(Q_net + battery_Q_sp - forecast_Q - np.finfo(float).eps))
         ABB_c_sp = - ABB_c_sp  # Because cos<0 = capacitive based on datasheet
     _, ABB_P_sp = af.find_nearest(ABB_steps, ABB_P_sp)
-    return ABB_P_sp, round(ABB_c_sp, 3), round(battery_P_sp, 3), round(battery_Q_sp, 3)
+    F_P = ABB_P_exp - battery_P_sp
+    F_Q = - ABB_c_sp * ABB_P_exp - battery_Q_sp
+    return ABB_P_sp, round(ABB_c_sp, 3), round(battery_P_sp, 3), round(battery_Q_sp, 3), ABB_P_exp, F_P, F_Q
 
 
 def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SOC_battery, SOC_desired, prices_vec):
@@ -89,11 +91,15 @@ def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SO
         ABB_Q_sp = DA_result["Solution_PV_Q"]
         Battery_P_sp = DA_result["Solution_ST_P"]
         Battery_Q_sp = DA_result["Solution_ST_Q"]
+        F_P = DA_result["Solution_con_P"]
+        F_Q = DA_result["Solution_con_Q"]
         ABB_P_sp = round(ABB_P_sp[0], 3)
         ABB_Q_sp = round(ABB_Q_sp[0], 3)
         Battery_P_sp = - round(Battery_P_sp[0], 3)
         Battery_Q_sp = - round(Battery_Q_sp[0], 3)
         print(f'Success, {ABB_P_sp}, {ABB_Q_sp}, {Battery_P_sp}, {Battery_Q_sp}')
+        F_P = F_P[0]
+        F_Q = F_Q[0]
         ABB_P_exp = ABB_P_sp
         ABB_Q_max = ABB_P_exp * np.tan(np.arccos(0.89))
         if - ABB_Q_max <= ABB_Q_sp <= ABB_Q_max:
@@ -106,8 +112,9 @@ def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SO
             ABB_P_sp = 100
         _, ABB_P_sp = af.find_nearest(ABB_steps, ABB_P_sp)
     else:
-        ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp = rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC_battery)
-    return ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp
+        ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp, ABB_P_exp, F_P, F_Q = \
+            rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC_battery)
+    return ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp, ABB_P_exp, F_P, F_Q
 
 
 def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
@@ -488,11 +495,13 @@ def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
     PROB_RT.optimize()
     ### Solution
     try:
-        print(PROB_RT.getAttr('x', Line_P_t))
-        print(PROB_RT.getAttr('x', Line_Q_t))
-        print(PROB_RT.getAttr('x', Net_P))
-        print(PROB_RT.getAttr('x', Net_Q))
-        print(PROB_RT.getAttr('x', Line_f))
+        # print(PROB_RT.getAttr('x', Line_P_t))
+        # print(PROB_RT.getAttr('x', Line_Q_t))
+        # print(PROB_RT.getAttr('x', Net_P))
+        # print(PROB_RT.getAttr('x', Net_Q))
+        # print(PROB_RT.getAttr('x', Line_f))
+        Solution_con_P = PROB_RT.getAttr('x', ConPoint_P)
+        Solution_con_Q = PROB_RT.getAttr('x', ConPoint_Q)
         Solution_PV_P = PROB_RT.getAttr('x', PV_P)
         Solution_PV_Q = PROB_RT.getAttr('x', PV_Q)
         Solution_ST_P = PROB_RT.getAttr('x', ST_P)
@@ -509,6 +518,8 @@ def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
         DA_result["Solution_PV_Q"] = Solution_PV_Q
         DA_result["Solution_ST_P"] = Solution_ST_P
         DA_result["Solution_ST_Q"] = Solution_ST_Q
+        DA_result["Solution_con_P"] = Solution_con_P
+        DA_result["Solution_con_Q"] = Solution_con_Q
         dres = (Solution_P_dev_pos[0] + Solution_P_dev_neg[0] + Solution_Q_dev_pos[0] + Solution_Q_dev_neg[0] >
                 rt_meas_inp["delta"])
         DA_result["time_out"] = False

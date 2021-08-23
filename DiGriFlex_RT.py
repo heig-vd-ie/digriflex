@@ -17,8 +17,8 @@ from rpy2.robjects.conversion import localconverter
 print(sys.version)
 
 #### Defining meta parameters
-dir_path = r"C:\Users\\" + os.environ.get('USERNAME') + r"\Desktop\DiGriFlex_Code"
-python64_path = r"C:\Users\\" + os.environ.get('USERNAME') + r"\AppData\Local\Programs\Python\Python39\python.exe"
+dir_path = r"C:/Users/" + os.environ.get('USERNAME') + r"/Desktop/DiGriFlex_Code"
+python64_path = r"C:/Users/" + os.environ.get('USERNAME') + r"/AppData/Local/Programs/Python/Python39/python.exe"
 network_name = "Case_4bus_DiGriFlex"  # Defining the network
 # network_name = "Case_LabVIEW"
 
@@ -43,11 +43,14 @@ def interface_control_digriflex(Vec_Inp):
     SOC_dersired = pickle.load(file_to_read)
     prices_vec = pickle.load(file_to_read)
     file_to_read.close()
-    _, Ligne_U, _, _, _, Charge_P, Charge_Q, Ond_P, Ond_Q, _, _, SOC = af.interface_meas(Vec_Inp)
+    _, Ligne_U, _, _, _, Charge_P, Charge_Q, Ond_P, Ond_Q, _, _, SOC, F_P_real, F_Q_real = \
+        af.interface_meas(Vec_Inp)
     # Cinergia_P_m, Cinergia_Q_m = Charge_P[11], Charge_Q[11]
     # ABB_P_m, ABB_Q_m = Ond_P[1], Ond_Q[1]
     ## Algorithm
+    print(1)
     data_rt = access_data_rt()  # Instead, the following lines can be called for testing
+    print(1)
     data_rt = data_rt[-1:]
     pred_for = data_rt[
         ["Irralag144_for", "Irralag2_for", "Irralag3_for", "Irralag4_for", "Irralag5_for", "Irralag6_for"]]
@@ -56,26 +59,15 @@ def interface_control_digriflex(Vec_Inp):
     now = datetime.now()
     timestep = (now.hour - 1) * 6 + math.floor(now.minute / 10) + 2
     result_p_pv, result_irra = forecasting_pv_rt(pred_for, timestep)
+    print(1)
     pred_for = data_rt[
         ["Pdemlag144_for", "Pdemlag2_for", "Pdemlag3_for", "Pdemlag4_for", "Pdemlag5_for", "Pdemlag6_for"]]
     result_p_dm = forecasting_active_power_rt(pred_for, timestep)
+    print(1)
     pred_for = data_rt[
         ["Qdemlag144_for", "Qdemlag2_for", "Qdemlag3_for", "Qdemlag4_for", "Qdemlag5_for", "Qdemlag6_for"]]
     result_q_dm = forecasting_reactive_power_rt(pred_for, timestep)
-    ## For testing and saving data
-    ####################################################################################
-    print(data_rt[["P", "irra", "Plag2_for", "Irralag2_for"]][-1:])
-    print(data_rt[["Pdemlag2_for", "Qdemlag2_for"]][-1:])
-    print("forecast_P, forecast_irra, forecast_Pdem, forecast_Qdem:"
-          + str(round(result_p_pv, 5)) + ', ' + str(round(result_irra, 2)) + ', '
-          + str(round(result_p_dm, 5)) + ', ' + str(round(result_q_dm, 5)))
-    df = pd.DataFrame([[now, pred_for.index[-1], data_rt.iloc[-1]['Plag2_for'], data_rt.iloc[-1]['Irralag2_for'],
-                        data_rt.iloc[-1]['Pdemlag2_for'], data_rt.iloc[-1]['Qdemlag2_for'],
-                        round(result_p_pv, 5), round(result_irra, 2),
-                        round(result_p_dm, 5), round(result_q_dm, 5)
-                        ]])
-    df.to_csv(dir_path + r'\Result\realtime_forecast.csv', mode='a', header=False)
-    ####################################################################################
+    print(1)
     grid_inp = af.grid_topology_sim(network_name, Vec_Inp)
     P_net = P_SC[timestep] + random.uniform(-RPN_SC[timestep], RPP_SC[timestep])  # Uniform dist. of reserves activation
     Q_net = Q_SC[timestep] + random.uniform(-RQN_SC[timestep], RQP_SC[timestep])  # Uniform dist. of reserves activation
@@ -107,7 +99,7 @@ def interface_control_digriflex(Vec_Inp):
               'prices_vec = pickle.load(file_to_read);' +
               'file_to_read.close();'
               'import Functions_P.OptimizationFunctions as of;'
-              'ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp = ' +
+              'ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp, ABB_P_exp, F_P, F_Q = ' +
               'of.rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SOC, SOC_desired, prices_vec);'
               # 'of.rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC);' +  # this function will be changed
               'file_to_store = open(r\'' + dir_path + '\' + r\'/Result/tmp_rt.pickle\', \'wb\');' +
@@ -115,6 +107,9 @@ def interface_control_digriflex(Vec_Inp):
               'pickle.dump(ABB_c_sp, file_to_store);' +
               'pickle.dump(Battery_P_sp, file_to_store);' +
               'pickle.dump(Battery_Q_sp, file_to_store);' +
+              'pickle.dump(ABB_P_exp, file_to_store);' +
+              'pickle.dump(F_P, file_to_store);' +
+              'pickle.dump(F_Q, file_to_store);' +
               'file_to_store.close()\"'
               )
     file_to_read = open(dir_path + r"/Result/tmp_rt.pickle", "rb")
@@ -122,7 +117,27 @@ def interface_control_digriflex(Vec_Inp):
     ABB_c_sp = pickle.load(file_to_read)
     Battery_P_sp = pickle.load(file_to_read)
     Battery_Q_sp = pickle.load(file_to_read)
+    ABB_P_exp = pickle.load(file_to_read)
+    F_P = - pickle.load(file_to_read)
+    F_Q = - pickle.load(file_to_read)
     file_to_read.close()
+    ## For testing and saving data
+    ####################################################################################
+    # print(data_rt[["P", "irra", "Plag2_for", "Irralag2_for"]][-1:])
+    # print(data_rt[["Pdemlag2_for", "Qdemlag2_for"]][-1:])
+    # print("forecast_P, forecast_irra, forecast_Pdem, forecast_Qdem:"
+    #       + str(round(result_p_pv, 5)) + ', ' + str(round(result_irra, 2)) + ', '
+    #       + str(round(result_p_dm, 5)) + ', ' + str(round(result_q_dm, 5)))
+    df = pd.DataFrame([[now, pred_for.index[-1], data_rt.iloc[-1]['Plag2_for'] / 1000,
+                        data_rt.iloc[-1]['Irralag2_for'],
+                        data_rt.iloc[-1]['Pdemlag2_for'] * 0.1, data_rt.iloc[-1]['Qdemlag2_for'] * 0.1,
+                        round(result_p_pv, 5), round(result_irra, 2),
+                        round(result_p_dm, 5), round(result_q_dm, 5),
+                        round(ABB_P_exp, 5), round(F_P, 5), round(F_Q, 5),
+                        Ond_P, Ond_Q, SOC, F_P_real, F_Q_real, P_net, Q_net
+                        ]])
+    df.to_csv(dir_path + r'\Result\realtime_data.csv', mode='a', header=False)
+    ####################################################################################
     ## Defining outputs
     Vec_Out = [0] * 16
     Vec_Out[0] = Battery_P_sp  # Output in kW // sum of three phase
