@@ -24,6 +24,7 @@ network_name = "Case_4bus_DiGriFlex"  # Defining the network
 
 
 def dayahead_digriflex(robust_par):
+    fac_P, fac_Q = 0.1, 0.1
     data_rt = access_data_rt()
     t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
     t_from = t_end - timedelta(days=2) + timedelta(minutes=10)
@@ -32,8 +33,8 @@ def dayahead_digriflex(robust_par):
     Qdem_pred_da = data_rt['Qdem'][t_from:t_end].to_numpy().tolist()
     result_p_pv, result_irr = forecasting_pv_da(irra_pred_da)
     result_p_pv = np.maximum(np.zeros((3, 144)), result_p_pv)
-    result_p_dm = forecasting_active_power_da(Pdem_pred_da)
-    result_q_dm = forecasting_reactive_power_da(Qdem_pred_da)
+    result_p_dm = forecasting_active_power_da(Pdem_pred_da, fac_P)
+    result_q_dm = forecasting_reactive_power_da(Qdem_pred_da, fac_Q)
     result_Vmag = 0.03 * np.ones((2, 144))
     result_SOC = [50, 0.2, 0.2]
     result_price = np.ones((6, 144))
@@ -136,7 +137,7 @@ def forecasting_pv_da(pred_for):
     return result_po, result_irra
 
 
-def forecasting_active_power_da(pred_for):
+def forecasting_active_power_da(pred_for, fac_P):
     """" Not Completed:
     This function is for running the day-ahead forecasting R code written by Pasquale
     Inputs:
@@ -152,11 +153,11 @@ def forecasting_active_power_da(pred_for):
     result_Pdem_r = DayAhead_Bayesboot(pred_for_r)
     with localconverter(ro.default_converter + pandas2ri.converter):
         result_Pdem = ro.conversion.rpy2py(result_Pdem_r)
-    result_Pdem = np.transpose(result_Pdem.values) * 0.1
+    result_Pdem = np.transpose(result_Pdem.values) * fac_P
     return result_Pdem
 
 
-def forecasting_reactive_power_da(pred_for):
+def forecasting_reactive_power_da(pred_for, fac_Q):
     """" Not Completed:
     This function is for running the day-ahead forecasting R code written by Pasquale
     Inputs:
@@ -172,7 +173,7 @@ def forecasting_reactive_power_da(pred_for):
     result_Qdem_r = DayAhead_Bayesboot(pred_for_r)
     with localconverter(ro.default_converter + pandas2ri.converter):
         result_Qdem = ro.conversion.rpy2py(result_Qdem_r)
-    result_Qdem = np.transpose(result_Qdem.values) * 0.1
+    result_Qdem = np.transpose(result_Qdem.values) * fac_Q
     return result_Qdem
 
 

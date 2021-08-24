@@ -79,7 +79,7 @@ LQR_Bayesboot <- function(predP_for,h,N_boot) {
   P_prev[is.nan(P_prev)] <- 0
   P_prev[P_prev < 0] <- 0
   P_prev <- mean(P_prev[5,])   # This line will change after the optimization of the sample pick
-  P_prev <- P_prev
+  P_prev <- base_P$xmin + P_prev * (base_P$xmax - base_P$xmin)
 }
 
 

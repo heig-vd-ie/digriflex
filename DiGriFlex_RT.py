@@ -31,6 +31,7 @@ def interface_control_digriflex(Vec_Inp):
     Q Cinergia, P1 SOP, Q1 SOP, P2 SOP, Q2 SOP, P GM, Q GM]
     """
     ## Reading inputs
+    fac_P, fac_Q = 0.1, 0.1
     now = datetime.now()
     today = str(now.year) + str(now.month) + str(now.day)
     file_to_read = open(dir_path + r"/Result/res" + today + ".pickle", "rb")
@@ -62,11 +63,11 @@ def interface_control_digriflex(Vec_Inp):
     print(1)
     pred_for = data_rt[
         ["Pdemlag144_for", "Pdemlag2_for", "Pdemlag3_for", "Pdemlag4_for", "Pdemlag5_for", "Pdemlag6_for"]]
-    result_p_dm = forecasting_active_power_rt(pred_for, timestep)
+    result_p_dm = forecasting_active_power_rt(pred_for, timestep, fac_P)
     print(1)
     pred_for = data_rt[
         ["Qdemlag144_for", "Qdemlag2_for", "Qdemlag3_for", "Qdemlag4_for", "Qdemlag5_for", "Qdemlag6_for"]]
-    result_q_dm = forecasting_reactive_power_rt(pred_for, timestep)
+    result_q_dm = forecasting_reactive_power_rt(pred_for, timestep, fac_Q)
     print(1)
     grid_inp = af.grid_topology_sim(network_name, Vec_Inp)
     P_net = P_SC[timestep] + random.uniform(-RPN_SC[timestep], RPP_SC[timestep])  # Uniform dist. of reserves activation
@@ -118,8 +119,8 @@ def interface_control_digriflex(Vec_Inp):
     Battery_P_sp = pickle.load(file_to_read)
     Battery_Q_sp = pickle.load(file_to_read)
     ABB_P_exp = pickle.load(file_to_read)
-    F_P = - pickle.load(file_to_read)
-    F_Q = - pickle.load(file_to_read)
+    F_P = pickle.load(file_to_read)
+    F_Q = pickle.load(file_to_read)
     file_to_read.close()
     ## For testing and saving data
     ####################################################################################
@@ -130,7 +131,7 @@ def interface_control_digriflex(Vec_Inp):
     #       + str(round(result_p_dm, 5)) + ', ' + str(round(result_q_dm, 5)))
     df = pd.DataFrame([[now, pred_for.index[-1], data_rt.iloc[-1]['Plag2_for'] / 1000,
                         data_rt.iloc[-1]['Irralag2_for'],
-                        data_rt.iloc[-1]['Pdemlag2_for'] * 0.1, data_rt.iloc[-1]['Qdemlag2_for'] * 0.1,
+                        data_rt.iloc[-1]['Pdemlag2_for'] * fac_P, data_rt.iloc[-1]['Qdemlag2_for'] * fac_Q,
                         round(result_p_pv, 5), round(result_irra, 2),
                         round(result_p_dm, 5), round(result_q_dm, 5),
                         round(ABB_P_exp, 5), round(F_P, 5), round(F_Q, 5),
@@ -144,8 +145,8 @@ def interface_control_digriflex(Vec_Inp):
     Vec_Out[1] = Battery_Q_sp  # Output in kVar // sum of three phase
     Vec_Out[4] = ABB_P_sp
     Vec_Out[5] = ABB_c_sp
-    Vec_Out[8] = data_rt.iloc[-1]['Pdemlag2_for'] * 0.1  # Output in kW // sum of three phase
-    Vec_Out[9] = data_rt.iloc[-1]['Qdemlag2_for'] * 0.1  # Output in kVar // sum of three phase
+    # Vec_Out[8] = data_rt.iloc[-1]['Pdemlag2_for'] * fac_P  # Output in kW // sum of three phase
+    # Vec_Out[9] = data_rt.iloc[-1]['Qdemlag2_for'] * fac_Q  # Output in kVar // sum of three phase
     return Vec_Out
 
 
@@ -260,7 +261,7 @@ def forecasting_pv_rt(pred_for, time_step):
     return result_p, result_irra
 
 
-def forecasting_active_power_rt(pred_for, time_step):
+def forecasting_active_power_rt(pred_for, time_step, fac_P):
     """" Completed:
     This function is for running the real-time forecasting R code written by Pasquale
     Inputs:
@@ -278,11 +279,11 @@ def forecasting_active_power_rt(pred_for, time_step):
     result_Pdem_r = LQR_Bayesboot(pred_for_r, time_step, N_boot)
     with localconverter(ro.default_converter + pandas2ri.converter):
         result_Pdem = ro.conversion.rpy2py(result_Pdem_r)
-    result_Pdem = result_Pdem[0] * 0.1
+    result_Pdem = result_Pdem[0] * fac_P
     return result_Pdem
 
 
-def forecasting_reactive_power_rt(pred_for, time_step):
+def forecasting_reactive_power_rt(pred_for, time_step, fac_Q):
     """" Completed:
     This function is for running the real-time forecasting R code written by Pasquale
     Inputs:
@@ -300,7 +301,7 @@ def forecasting_reactive_power_rt(pred_for, time_step):
     result_Qdem_r = LQR_Bayesboot(pred_for_r, time_step, N_boot)
     with localconverter(ro.default_converter + pandas2ri.converter):
         result_Qdem = ro.conversion.rpy2py(result_Qdem_r)
-    result_Qdem = result_Qdem[0] * 0.1
+    result_Qdem = result_Qdem[0] * fac_Q
     return result_Qdem
 
 
