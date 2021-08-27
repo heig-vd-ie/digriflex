@@ -9,10 +9,15 @@ import pickle
 import rpy2.robjects as ro
 import mysql.connector
 import Functions_P.AuxiliaryFunctions as af
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 from DiGriFlex_RT import access_data_rt
+from sklearn.cluster import KMeans
+from sklearn import preprocessing
+from sklearn.ensemble import RandomForestRegressor
+import quantecon as qe
+import scipy.stats as ss
 
 print(sys.version)
 
@@ -25,16 +30,48 @@ network_name = "Case_4bus_DiGriFlex"  # Defining the network
 
 def dayahead_digriflex(robust_par):
     fac_P, fac_Q = 0.1, 0.1
+    mode_forec = 'mc'  # 'r', 'b1', 'b2', 'mc'
     data_rt = access_data_rt()
     t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
     t_from = t_end - timedelta(days=2) + timedelta(minutes=10)
     irra_pred_da = data_rt['irra'][t_from:t_end].to_numpy().tolist()
     Pdem_pred_da = data_rt['Pdem'][t_from:t_end].to_numpy().tolist()
     Qdem_pred_da = data_rt['Qdem'][t_from:t_end].to_numpy().tolist()
-    result_p_pv, result_irr = forecasting_pv_da(irra_pred_da)
+    if mode_forec == 'r':
+        result_p_pv, result_irr = forecasting_pv_da(irra_pred_da)
+        result_p_dm = forecasting_active_power_da(Pdem_pred_da, fac_P)
+        result_q_dm = forecasting_reactive_power_da(Qdem_pred_da, fac_Q)
+    elif mode_forec == 'b1':
+        dd = 30
+        t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
+        t_from = t_end - timedelta(days=dd) + timedelta(minutes=10)
+        pv_pred_da = np.resize(data_rt['P'][t_from:t_end].to_numpy(), (dd, 144)) / 1000
+        Pdem_pred_da = np.resize(data_rt['Pdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
+        Qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
+        result_p_pv = forecasting1(pv_pred_da, 'PV power production (kW)')
+        result_p_dm = forecasting1(Pdem_pred_da, 'Demand active power (kW)')
+        result_q_dm = forecasting1(Qdem_pred_da, 'Demand reactive power (kVar)')
+    elif mode_forec == 'b2':
+        dd = 30
+        t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
+        t_from = t_end - timedelta(days=dd) + timedelta(minutes=10)
+        pv_pred_da = np.resize(data_rt['P'][t_from:t_end].to_numpy(), (dd, 144)) / 1000
+        Pdem_pred_da = np.resize(data_rt['Pdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
+        Qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
+        result_p_pv = forecasting2(pv_pred_da, 'PV power production (kW)')
+        result_p_dm = forecasting2(Pdem_pred_da, 'Demand active power (kW)')
+        result_q_dm = forecasting2(Qdem_pred_da, 'Demand reactive power (kVar)')
+    elif mode_forec == 'mc':
+        dd = 30
+        t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
+        t_from = t_end - timedelta(days=dd) + timedelta(minutes=10)
+        pv_pred_da = np.resize(data_rt['P'][t_from:t_end].to_numpy(), (dd, 144)) / 1000
+        Pdem_pred_da = np.resize(data_rt['Pdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
+        Qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
+        result_p_pv = forecasting3(pv_pred_da, 'PV power production (kW)')
+        result_p_dm = forecasting3(Pdem_pred_da, 'Demand active power (kW)')
+        result_q_dm = forecasting3(Qdem_pred_da, 'Demand reactive power (kVar)')
     result_p_pv = np.maximum(np.zeros((3, 144)), result_p_pv)
-    result_p_dm = forecasting_active_power_da(Pdem_pred_da, fac_P)
-    result_q_dm = forecasting_reactive_power_da(Qdem_pred_da, fac_Q)
     result_Vmag = 0.03 * np.ones((2, 144))
     result_SOC = [50, 0.2, 0.2]
     result_price = np.ones((6, 144))
@@ -175,6 +212,136 @@ def forecasting_reactive_power_da(pred_for, fac_Q):
         result_Qdem = ro.conversion.rpy2py(result_Qdem_r)
     result_Qdem = np.transpose(result_Qdem.values) * fac_Q
     return result_Qdem
+
+
+def transition_matrix(tran, ndig):
+    n = 1 + ndig
+    M1 = [[0] * n for _ in range(n)]
+    for (i, j) in zip(tran, tran[1:]):
+        M1[i][j] += 1
+    k = 0
+    for row in M1:
+        s = sum(row)
+        if s > 0:
+            row[:] = [f/s for f in row]
+        else:
+            row[k] = 1
+        k = k + 1
+    return M1
+
+
+def forecasting1(data0, name):
+    date_sp = datetime.now()
+    date_sp = date_sp.replace(day = date_sp.day + 1)
+    t = pd.date_range(pd.Timestamp(date_sp).floor(freq='D'), periods=144, freq='10min')
+    model = KMeans(n_clusters=3, random_state=0).fit(data0)
+    output = model.cluster_centers_
+    avg = np.average(output, axis=1)
+    rank = ss.rankdata(avg)
+    f_i = np.where(rank == 2)
+    forecast = output[f_i[0], :]
+    err_p = np.max(output, axis=0) - forecast
+    err_n = forecast - np.min(output, axis=0)
+    vec_out = np.zeros((3, 144))
+    vec_out[0, :] = forecast
+    vec_out[1, :] = err_p
+    vec_out[2, :] = err_n
+    return vec_out
+
+
+def forecasting2(data0, name):
+    dd = 30
+    date_sp = datetime.now()
+    date_sp = date_sp.replace(day = date_sp.day + 1)
+    t = pd.date_range(pd.Timestamp(date_sp).floor(freq ='D'), periods=144, freq='10min')
+    data0 = np.resize(data0, (dd * 144, 1))
+    M = data0[288:]
+    F = np.transpose(np.resize(np.array([data0[144:dd*144-144].tolist(),
+                                         data0[:dd*144-288].tolist()]), (2, (dd - 2) * 144)))
+    Theta = np.matmul(np.linalg.inv(np.matmul(np.transpose(F), F)), np.matmul(np.transpose(F), M))
+    error = np.resize(M - np.matmul(F, Theta), (dd - 2, 144))
+    varm = np.zeros((144, 1))
+    for tt in range(144):
+        varm[tt] = np.std(error[:, tt])
+    F = np.transpose(np.resize(np.array([data0[dd*144-144:].tolist(),
+                                         data0[dd*144-288:dd*144-144].tolist()]), (2, 144)))
+    y_pred = np.matmul(F, Theta)
+    y_scen = np.zeros((100, 144))
+    for s in range(100):
+        for tt in range(144):
+            y_scen[s, tt] = y_pred[tt] + np.random.normal(0, varm[tt])
+    model = KMeans(n_clusters=3, random_state=0).fit(y_scen)
+    output = model.cluster_centers_
+    output = np.delete(output, model.predict(np.transpose(y_pred)), 0)
+    output = np.append(output, np.transpose(y_pred), axis=0)
+    err_p = np.max(output, axis=0) - np.transpose(y_pred)
+    err_n = np.transpose(y_pred) - np.min(output, axis=0)
+    vec_out = np.zeros((3, 144))
+    vec_out[0, :] = np.transpose(y_pred)
+    vec_out[1, :] = err_p
+    vec_out[2, :] = err_n
+    return vec_out
+
+
+def forecasting3(data0, name):
+    dd = 30
+    date_sp = datetime.now()
+    date_sp = date_sp.replace(day = date_sp.day + 1)
+    t = pd.date_range(pd.Timestamp(date_sp).floor(freq ='D'), periods=144, freq='10min')
+    data1 = np.resize(data0, (dd * 144, 1))
+    data = pd.DataFrame(data1, columns=['output'])
+    for tt in range(144, 184):
+        data[str(tt) + 'h_delay'] = data['output'].shift(periods=tt)
+    std = np.std(data1) / data['output'].std()
+    mean = np.mean(data1) - data['output'].mean()
+    y = data.pop('output')
+    train_x, train_y = data, y
+    train_x = train_x.fillna(train_x.mean())
+    features = list(train_x.columns)
+    RandomForestRegModel = RandomForestRegressor()
+    RandomForestRegModel.fit(train_x, train_y)
+    y_pred = RandomForestRegModel.predict(train_x)
+    y_pred = y_pred * std + mean
+    y_pred0 = y_pred[-144:]
+    model = KMeans(n_clusters=3, random_state=0).fit(data0)
+    ind = model.predict(np.resize(y_pred0, (1, 144)))
+    ind2 = model.predict(data0)
+    y = np.transpose(data0[ind2==ind])
+    b = np.min(y)
+    l = np.max(y) - np.min(y)
+    y2 = np.divide(y - b, l)
+    y2 = np.resize(np.transpose(y2), (y2.shape[1]*144, 1))
+    y2 = y2[y2>0.01]
+    digit = 20
+    bins = np.arange(0.05, 1, 1/digit)
+    transitions = np.digitize(y2, bins, right=True)
+    TM = transition_matrix(transitions,digit)
+    mc = qe.MarkovChain(TM)
+    y_scen = np.zeros((100, 144))
+    for s in range(100):
+        if name == 'PV power production (kW)':
+            l = np.max(y, axis=1) - np.min(y, axis=1)
+            b = 0
+            initial_state = 0
+        else:
+            l = np.max(y) - np.min(y)
+            b = np.min(y)
+            initial_state = digit / 2
+        X = mc.simulate(init = int(initial_state), ts_length=144) / (np.sqrt(np.size(TM))-1)
+
+        y_scen[s, :] = np.multiply(X, l) + b
+    model = KMeans(n_clusters=3, random_state=0).fit(y_scen)
+    output = model.cluster_centers_
+    delind = model.predict(np.resize(y_pred0, (1, 144)))
+    output = np.delete(output, delind, 0)
+    output = np.append(output, np.resize(y_pred0, (1, 144)), axis=0)
+    err_p = np.max(output, axis=0) - y_pred0
+    err_n = y_pred0 - np.min(output, axis=0)
+    vec_out = np.zeros((3, 144))
+    vec_out[0, :] = np.transpose(y_pred0)
+    vec_out[1, :] = np.transpose(err_p)
+    vec_out[2, :] = np.transpose(err_n)
+    return vec_out
 
 
 #### TESTING

@@ -1463,7 +1463,7 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
                 if om == 0:
                     PV_Forecast[nn["index"]][t][om] = fore_inp["P_PV"][t] * nn["cap_kVA_perPhase"]
                 elif om == 1:
-                    PV_Forecast[nn["index"]][t][om] = (fore_inp["P_PV"][t] - fore_inp["P_PV_zeta-"][t]) \
+                    PV_Forecast[nn["index"]][t][om] = (max([0, fore_inp["P_PV"][t] - fore_inp["P_PV_zeta-"][t]])) \
                                                       * nn["cap_kVA_perPhase"]
                 elif om == 2:
                     PV_Forecast[nn["index"]][t][om] = (fore_inp["P_PV"][t] + fore_inp["P_PV_zeta+"][t]) \

@@ -186,7 +186,7 @@ def access_data_rt():
         "FROM db_iese_2021"
     )
     mydata1 = mycursor1.fetchall()
-    myresult = pd.DataFrame.from_records(mydata1[-60 * 24 * 3:], columns=['Date and Time', 'P', 'irra'],
+    myresult = pd.DataFrame.from_records(mydata1[-60 * 24 * 40:], columns=['Date and Time', 'P', 'irra'],
                                          index=['Date and Time'])
     myresult = myresult.resample('10min').mean()
     myresult['Irralag2_for'] = myresult['irra'].shift(1)
@@ -203,7 +203,7 @@ def access_data_rt():
         "FROM Reseau_HEIG"
     )
     mydata2 = mycursor2.fetchall()
-    mydata2 = pd.DataFrame.from_records(mydata2[-4 * 24 * 3:],
+    mydata2 = pd.DataFrame.from_records(mydata2[-4 * 24 * 40:],
                                         columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'],
                                         index=['Date and Time'])
     mydata2.index = mydata2.index.floor('10min')
