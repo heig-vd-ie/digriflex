@@ -4,7 +4,6 @@
 ## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (function "reine_parameters()")
 ## - CM#1: Finding power output from the irradiance and temperature
 ## - CM#2: Embedding the code of Pasquale for day_ahead forecasting
-## - Checking whether the optimziation code is correct or not, because I get pv=3 instead of 10 and cannot follow the sp
 
 
 #### Importing packages

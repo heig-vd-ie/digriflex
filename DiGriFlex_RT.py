@@ -182,11 +182,14 @@ def access_data_rt():
                                    database="heigvdch_meteo")  # Database for reading real-time data
     mycursor1 = mydb.cursor()
     mycursor1.execute(
-        "SELECT `Date and Time`, `Labo Reine.ABB.Power AC [W]`, `Meteo.Irradiance.Rayonnement Global moyen [W/m2]` "
+        "SELECT `Date and Time`, `Labo Reine.ABB.Power AC [W]`, `Meteo.Irradiance.Rayonnement Global moyen [W/m2]`,"
+        "`Meteo.Air.Pression Brute [hPa]`, `Meteo.Air.Humidite [pourcent]`, `Meteo.Air.Temperature exterieure [degre C]`,"
+        "`Meteo.Air.Vent.v moyen [m/s]` "
         "FROM db_iese_2021"
     )
     mydata1 = mycursor1.fetchall()
-    myresult = pd.DataFrame.from_records(mydata1[-60 * 24 * 40:], columns=['Date and Time', 'P', 'irra'],
+    myresult = pd.DataFrame.from_records(mydata1[-60 * 24 * 40:], columns=['Date and Time', 'P', 'irra', 'pres',
+                                                                           'relh', 'temp', 'wind'],
                                          index=['Date and Time'])
     myresult = myresult.resample('10min').mean()
     myresult['Irralag2_for'] = myresult['irra'].shift(1)

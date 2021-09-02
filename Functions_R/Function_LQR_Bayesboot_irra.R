@@ -69,7 +69,7 @@ LQR_Bayesboot <- function(pred_for,h,N_boot) {
     DATA_forec_h <- DATA_for
     
     # Forecasting model
-    for (q in seq(1,length(Q01),1))
+    for (q in 5)
     {
       qr_prev <- function(d)     # Definition of the forecasting function (quantile regression model)
       { mdl_fit <- rq( irra ~ irralag144 + irralag2 + irralag3 + irralag4 + irralag5 + irralag6 + 
