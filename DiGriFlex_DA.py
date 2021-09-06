@@ -293,7 +293,7 @@ def dayahead_digriflex(robust_par):
         result_q_dm = forecasting3(Qdem_pred_da, 'Demand reactive power (kVar)')
     result_p_pv = np.maximum(np.zeros((3, 144)), result_p_pv)
     result_Vmag = 0.03 * np.ones((2, 144))
-    result_SOC = [50, 0.2, 0.2]
+    result_SOC = [5, 0.2, 0.2]
     result_price = np.ones((6, 144))
     result_price[0][:] = 10 * result_price[0][:]
     result_price[1][:] = 0 * result_price[1][:]
@@ -341,7 +341,7 @@ def dayahead_digriflex(robust_par):
               'robust_par = pickle.load(file_to_read);' +
               'file_to_read.close();' +
               'import Functions_P.OptimizationFunctions as of;' +
-              'P_SC, Q_SC, RPP_SC, RPN_SC, RQP_SC, RQN_SC, SOC_dersired, prices_vec2 = ' +
+              'P_SC, Q_SC, RPP_SC, RPN_SC, RQP_SC, RQN_SC, SOC_dersired, prices_vec2, Obj = ' +
               'of.da_opt_digriflex(grid_inp, V_mag, result_p_pv, result_p_dm, result_q_dm, result_SOC, result_price, robust_par);' +
               'now = datetime.now();' + 'tomorrow = str(now.year) + str(now.month) + str(now.day + 1);' +
               'file_to_store = open(r\'' + dir_path + '\' + r\'/Result/res\' + tomorrow + \'.pickle\', \'wb\');' +
@@ -353,6 +353,7 @@ def dayahead_digriflex(robust_par):
               'pickle.dump(RQN_SC, file_to_store);' +
               'pickle.dump(SOC_dersired, file_to_store);' +
               'pickle.dump(prices_vec2, file_to_store);' +
+              'pickle.dump(Obj, file_to_store);' +
               'file_to_store.close()\"'
               )
     # now = datetime.now()
@@ -371,4 +372,4 @@ def dayahead_digriflex(robust_par):
 
 
 #### TESTING
-dayahead_digriflex(0.8)
+dayahead_digriflex(0.75)

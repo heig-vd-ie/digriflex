@@ -584,12 +584,14 @@ def da_opt_digriflex(grid_inp, V_mag, forecast_pv, forecast_p_dm, forecast_q_dm,
         RQP_SC = DA_result["DA_RQ_pos"]
         RQN_SC = DA_result["DA_RQ_neg"]
         SOC_dersired = DA_result["Solution_ST_SOC"][0]
+        Obj = DA_result["obj"]
     else:
         P_SC, Q_SC = [-9] * 144, [2] * 144
         RPP_SC, RPN_SC, RQP_SC, RQN_SC = [0.4] * 144, [0.4] * 144, [0.2] * 144, [0.2] * 144
         SOC_dersired = [10] * 144
+        Obj = 0
     prices_vec2 = [0, 1, 100, 1000]
-    return P_SC, Q_SC, RPP_SC, RPN_SC, RQP_SC, RQN_SC, SOC_dersired, prices_vec2
+    return P_SC, Q_SC, RPP_SC, RPN_SC, RQP_SC, RQN_SC, SOC_dersired, prices_vec2, Obj
 
 
 def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF):
@@ -1341,6 +1343,7 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
         DA_result["DA_RQ_neg"] = DA_RQQ_neg
         DA_result["delta"] = 0.001
         obj = PROB_DA.getObjective()
+        DA_result["obj"] = obj.getValue()
         output_DF.loc['obj', case_name] = obj.getValue()
         output_DF.loc['DA_P_avg', case_name] = sum(DA_PP) / len(DA_PP)
         output_DF.loc['DA_Q_avg', case_name] = sum(DA_QQ) / len(DA_QQ)
@@ -1889,6 +1892,7 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
         DA_result["DA_RQ_neg"] = DA_RQQ_neg
         DA_result["delta"] = 0.001
         obj = PROB_DA.getObjective()
+        DA_result["obj"] = obj.getValue()
         output_DF.loc['obj', case_name] = obj.getValue()
         output_DF.loc['DA_P_avg', case_name] = sum(DA_PP) / len(DA_PP)
         output_DF.loc['DA_Q_avg', case_name] = sum(DA_QQ) / len(DA_QQ)
