@@ -49,7 +49,7 @@ def forecasting_pv_da(pred_for):
     for h in range(1, 145):
         with localconverter(ro.default_converter + pandas2ri.converter):
             pred_for_r = ro.conversion.py2rpy(pred_for[h - 1][:])
-        result_irr_r = DayAhead_Bayesboot(pred_for_r, h, 30)
+        result_irr_r = DayAhead_Bayesboot(pred_for_r, h, 10)
         with localconverter(ro.default_converter + pandas2ri.converter):
             result_irra_0 = ro.conversion.rpy2py(result_irr_r)
         temp = np.transpose(result_irra_0)

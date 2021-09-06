@@ -62,7 +62,7 @@ def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SO
     meas_inp = {}
     rt_meas_inp["delta"] = 0.001
     rt_meas_inp["Loss_Coeff"] = prices_vec[0]
-    rt_meas_inp["ST_Coeff"] = prices_vec[1]
+    rt_meas_inp["ST_Coeff"] = prices_vec[1]*0.1
     rt_meas_inp["PV_Coeff"] = prices_vec[2]
     rt_meas_inp["dev_Coeff"] = prices_vec[3]
     meas_inp["DeltaT"] = 10 / 60
@@ -466,7 +466,7 @@ def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
         #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
         #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
         # (27)
-        PROB_RT.addConstr(PV_P[i] * PV_P[i] + PV_Q[i] * PV_Q[i] <= PV_cap[i] * PV_cap[i])
+        # PROB_RT.addConstr(PV_P[i] * PV_P[i] + PV_Q[i] * PV_Q[i] <= PV_cap[i] * PV_cap[i])
         # PROB_RT.addConstr(PV_Q[i] == 0)
     for f in ConPoint_Set:
         PROB_RT.addConstr(ConPoint_P[f] == sum(Line_P_t[n1, n2] * ConPoint_Inc_Mat[f, n1] for n1, n2 in Line_Set))
@@ -1059,7 +1059,7 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
             #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
             #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
             # (25)
-            PROB_DA.addConstr(PV_P[i, t] * PV_P[i, t] + PV_Q[i, t] * PV_Q[i, t] <= PV_cap[i] * PV_cap[i])
+            # PROB_DA.addConstr(PV_P[i, t] * PV_P[i, t] + PV_Q[i, t] * PV_Q[i, t] <= PV_cap[i] * PV_cap[i])
         for f in ConPoint_Set:
             PROB_DA.addConstr(
                 ConPoint_P_DA_EN[f, t] == sum(Line_P_t[n1, n2, t] * ConPoint_Inc_Mat[f, n1] for n1, n2 in Line_Set))
@@ -1203,10 +1203,10 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
             #                   * (min_PV_Q[i, t] + PV_V_grid[i] * PV_V_grid[i] * PV_cap[i] / PV_X[i])
             #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
             #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
-            PROB_DA.addConstr(
-                max_PV_P[i, t] * max_PV_P[i, t] + max_PV_Q[i, t] * max_PV_Q[i, t] <= PV_cap[i] * PV_cap[i])
-            PROB_DA.addConstr(
-                max_PV_P[i, t] * max_PV_P[i, t] + min_PV_Q[i, t] * min_PV_Q[i, t] <= PV_cap[i] * PV_cap[i])
+            # PROB_DA.addConstr(
+            #     max_PV_P[i, t] * max_PV_P[i, t] + max_PV_Q[i, t] * max_PV_Q[i, t] <= PV_cap[i] * PV_cap[i])
+            # PROB_DA.addConstr(
+            #     max_PV_P[i, t] * max_PV_P[i, t] + min_PV_Q[i, t] * min_PV_Q[i, t] <= PV_cap[i] * PV_cap[i])
         # Adjustable robust constraints (connection point)
         for f in ConPoint_Set:
             PROB_DA.addConstr(max_ConPoint_P_EN[f, t] == ConPoint_P_DA_EN[f, t] + alfa_ConPoint_P_n[f, t])
@@ -1784,8 +1784,8 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
             #                   <= (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i])
             #                   * (PV_cap[i] * PV_V_grid[i] * PV_V_conv[i] / PV_X[i]))
             # (27)
-            PROB_DA.addConstr(
-                PV_P[i, t, om] * PV_P[i, t, om] + PV_Q[i, t, om] * PV_Q[i, t, om] <= PV_cap[i] * PV_cap[i])
+            # PROB_DA.addConstr(
+            #     PV_P[i, t, om] * PV_P[i, t, om] + PV_Q[i, t, om] * PV_Q[i, t, om] <= PV_cap[i] * PV_cap[i])
             # PROB_DA.addConstr(PV_Q[i, t, om] == 0)
         for f in ConPoint_Set:
             PROB_DA.addConstr(

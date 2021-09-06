@@ -84,9 +84,9 @@ LQR_Bayesboot <- function(pred_for,h,N_boot) {
   
   if (h<=33)      # For h<=33 and h>=121 (before 5:30 and after 20:00) the output is directly 0
     {irra_prev <- array(rep(0, length(Q01)*N_boot), c(length(Q01),N_boot))}
-  if (h>=117) 
+  if (h>=121)
     {irra_prev <- array(rep(0, length(Q01)*N_boot), c(length(Q01),N_boot))}
-  if (h>=34 & h <=116) {
+  if (h>=34 & h <=120) {
     
     # Train and forecast data
     train_h <- seq(from = h, to = length(DATA_tra[,1]), by = 144) 

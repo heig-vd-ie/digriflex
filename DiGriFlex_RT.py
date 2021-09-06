@@ -118,6 +118,7 @@ def interface_control_digriflex(Vec_Inp):
     ABB_c_sp = pickle.load(file_to_read)
     Battery_P_sp = pickle.load(file_to_read)
     Battery_Q_sp = pickle.load(file_to_read)
+    print(Battery_P_sp, Battery_Q_sp)
     ABB_P_exp = pickle.load(file_to_read)
     F_P = pickle.load(file_to_read)
     F_Q = pickle.load(file_to_read)
