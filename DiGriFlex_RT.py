@@ -70,8 +70,8 @@ def interface_control_digriflex(Vec_Inp):
     result_q_dm = forecasting_reactive_power_rt(pred_for, timestep, fac_Q)
     print(1)
     grid_inp = af.grid_topology_sim(network_name, Vec_Inp)
-    P_net = P_SC[timestep] + random.uniform(-RPN_SC[timestep], RPP_SC[timestep])  # Uniform dist. of reserves activation
-    Q_net = Q_SC[timestep] + random.uniform(-RQN_SC[timestep], RQP_SC[timestep])  # Uniform dist. of reserves activation
+    P_net = P_SC[timestep] + random.triangular(-RPN_SC[timestep], RPP_SC[timestep], 0)  # Triangular dist. of reserves activation
+    Q_net = Q_SC[timestep] + random.triangular(-RQN_SC[timestep], RQP_SC[timestep], 0)  # Triangular dist. of reserves activation
     file_to_store = open(dir_path + r"/Result/tmp_rt.pickle", "wb")
     pickle.dump(grid_inp, file_to_store)
     pickle.dump(400, file_to_store)  # Ligne_U[0] * np.sqrt(3)

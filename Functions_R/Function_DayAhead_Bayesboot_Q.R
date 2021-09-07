@@ -13,6 +13,6 @@ suppressPackageStartupMessages(library(quantreg))
 
 ##### Actual function
 DayAhead_Bayesboot <- function(pred_for) {
-  output <- data.frame(col1 = t(data.frame(pred_for[145:288])), col2 = rep(0.3, 144), col3 = rep(0.3, 144))
+  output <- data.frame(col1 = t(data.frame(pred_for[145:288])), col2 = rep(3, 144), col3 = rep(3, 144))
   output <-  output
 }

@@ -234,7 +234,6 @@ def forecasting3(data0, name):
 
 
 def dayahead_digriflex(robust_par):
-    robust_par = 1
     fac_P, fac_Q = 0.1, 0.1
     mode_forec = 'r'  # 'r', 'b1', 'b2', 'mc'
     data_rt = access_data_rt()
@@ -261,6 +260,8 @@ def dayahead_digriflex(robust_par):
         result_p_pv, result_irr = forecasting_pv_da(irra_pred_da)
         result_p_dm = forecasting_active_power_da(Pdem_pred_da, fac_P)
         result_q_dm = forecasting_reactive_power_da(Qdem_pred_da, fac_Q)
+        result_p_dm = result_p_dm
+        result_q_dm = result_q_dm
     elif mode_forec == 'b1':
         dd = 30
         t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
@@ -372,4 +373,4 @@ def dayahead_digriflex(robust_par):
 
 
 #### TESTING
-dayahead_digriflex(0.75)
+dayahead_digriflex(0.8)

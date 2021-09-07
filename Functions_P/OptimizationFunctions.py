@@ -1269,6 +1269,7 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
                               <= min_Vmag_sq[n1, t] * (Line_Smax[n1, n2] ** 2) * 9 / (1000 * Line_Vbase[n1, n2] ** 2))
             ### Defining Objective and Solving Problem
     PROB_DA.setObjective(1000 * DeltaT * OBJ_DA_MARKET.sum(), GRB.MAXIMIZE)
+    # PROB_DA.setObjective(1, GRB.MAXIMIZE)
     PROB_DA.Params.BarHomogeneous = 1
     PROB_DA.optimize()
     ### Solution
