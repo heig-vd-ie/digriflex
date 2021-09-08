@@ -261,7 +261,7 @@ def forecasting_pv_rt(pred_for, time_step):
     with localconverter(ro.default_converter + pandas2ri.converter):
         result_irra = ro.conversion.rpy2py(result_irr_r)
     result_irra = result_irra[0]
-    result_p = (result_irra * 6.2 + 26) / 1000
+    result_p = (result_irra * 6.21) / 1000
     return result_p, result_irra
 
 

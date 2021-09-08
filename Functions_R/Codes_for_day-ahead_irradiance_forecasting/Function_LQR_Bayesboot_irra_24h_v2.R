@@ -2,14 +2,7 @@
 user_name_str <- Sys.info()[[7]]
 R_libraries_path <- paste("C:/Users/",user_name_str,"/Documents/R/win-library/4.0", sep="")
 Data_path <- paste("C:/Users/",user_name_str,"/Desktop/DiGriFlex_Code/Functions_R/Codes_for_day-ahead_irradiance_forecasting/", sep="")
-# if(Sys.info()[[7]] == "mohammad.rayati"){
-#   R_libraries_path <- "C:/Users/mohammad.rayati/Documents/R/win-library/4.0"
-#   Data_path <- "C:/Users/mohammad.rayati/Desktop/DiGriFlex_Code/Data/"
-# }
-# if(Sys.info()[[7]] == "labo-reine-iese"){
-#   R_libraries_path <- "C:/Users/labo-reine-iese/Documents/R/win-library/4.0"
-#   Data_path <- "C:/Users/labo-reine-iese/Desktop/DiGriFlex_Code/Data/"
-# }
+
 .libPaths(c(R_libraries_path))
 sink("nul")
 

@@ -5,7 +5,6 @@
 ## - CM#0: For the test, I consider two things for SoC: first minimum SoC in Aux. Functions, then result_SoC in DiGriFlex_DA
 ## - CM#0: I seperate simulation and test files in the folder "Result"
 ## - CM#1: Finding power output from the irradiance and temperature
-## - CM#2: Embedding the code of Pasquale for day_ahead forecasting
 
 
 #### Importing packages

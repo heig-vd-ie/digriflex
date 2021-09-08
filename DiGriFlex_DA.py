@@ -31,11 +31,11 @@ network_name = "Case_4bus_DiGriFlex"  # Defining the network
 # network_name = "Case_LabVIEW"
 
 
-def forecasting_pv_da(pred_for):
-    """" Not Completed:
+def forecasting_pv_da(pred_for, Nboot):
+    """" Completed:
     This function is for running the day-ahead forecasting R code written by Pasquale
     Inputs:
-        - pred_for: a dataframe containing predictors irra for last two days
+        - pred_for
     Output:
         - result_p: forecasted power in kW
         - result_irra: forecasted irradiance in W/m2
@@ -49,7 +49,7 @@ def forecasting_pv_da(pred_for):
     for h in range(1, 145):
         with localconverter(ro.default_converter + pandas2ri.converter):
             pred_for_r = ro.conversion.py2rpy(pred_for[h - 1][:])
-        result_irr_r = DayAhead_Bayesboot(pred_for_r, h, 10)
+        result_irr_r = DayAhead_Bayesboot(pred_for_r, h, Nboot)
         with localconverter(ro.default_converter + pandas2ri.converter):
             result_irra_0 = ro.conversion.rpy2py(result_irr_r)
         temp = np.transpose(result_irra_0)
@@ -63,43 +63,55 @@ def forecasting_pv_da(pred_for):
     return result_po, result_irra
 
 
-def forecasting_active_power_da(pred_for, fac_P):
-    """" Not Completed:
+def forecasting_active_power_da(pred_for, fac_P, Nboot):
+    """" Completed:
     This function is for running the day-ahead forecasting R code written by Pasquale
     Inputs:
-        - pred_for: a dataframe containing predictors P for the last two days
+        - pred_for
     Output: result_Pdem: forecasted active power in kW
     """
     ## Calling R function
     r = ro.r
-    r['source'](dir_path + r'\Functions_R\Function_DayAhead_Bayesboot_P.R')
-    DayAhead_Bayesboot = ro.globalenv['DayAhead_Bayesboot']
-    with localconverter(ro.default_converter + pandas2ri.converter):
-        pred_for_r = ro.conversion.py2rpy(pred_for)
-    result_Pdem_r = DayAhead_Bayesboot(pred_for_r)
-    with localconverter(ro.default_converter + pandas2ri.converter):
-        result_Pdem = ro.conversion.rpy2py(result_Pdem_r)
-    result_Pdem = np.transpose(result_Pdem.values) * fac_P
+    r['source'](dir_path + r'\Functions_R\New_codes_with_1week_lagged_data\Function_LQR_Bayesboot_P_24h_v3.R')
+    DayAhead_Bayesboot = ro.globalenv['LQR_Bayesboot']
+    result_Pdem = np.zeros((3, 144))
+    for h in range(1, 145):
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            pred_for_r = ro.conversion.py2rpy(pred_for[h - 1][:])
+        result_Pdem_r = DayAhead_Bayesboot(pred_for_r, h, Nboot)
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            result_Pdem_0 = ro.conversion.rpy2py(result_Pdem_r)
+        temp = np.transpose(result_Pdem_0) * fac_P
+        result_Pdem[0][h - 1] = temp[1][0]
+        result_Pdem[1][h - 1] = temp[2][0] - temp[1][0]
+        result_Pdem[2][h - 1] = temp[1][0] - temp[0][0]
+        print('pdem:' + str(h))
     return result_Pdem
 
 
-def forecasting_reactive_power_da(pred_for, fac_Q):
-    """" Not Completed:
+def forecasting_reactive_power_da(pred_for, fac_Q, Nboot):
+    """" Completed:
     This function is for running the day-ahead forecasting R code written by Pasquale
     Inputs:
-        - pred_for: a dataframe containing predictors Q for the last two days
+        - pred_for
     Output: result_Qdem: forecasted active power in kW
     """
     ## Calling R function
     r = ro.r
-    r['source'](dir_path + r'\Functions_R\Function_DayAhead_Bayesboot_Q.R')
-    DayAhead_Bayesboot = ro.globalenv['DayAhead_Bayesboot']
-    with localconverter(ro.default_converter + pandas2ri.converter):
-        pred_for_r = ro.conversion.py2rpy(pred_for)
-    result_Qdem_r = DayAhead_Bayesboot(pred_for_r)
-    with localconverter(ro.default_converter + pandas2ri.converter):
-        result_Qdem = ro.conversion.rpy2py(result_Qdem_r)
-    result_Qdem = np.transpose(result_Qdem.values) * fac_Q
+    r['source'](dir_path + r'\Functions_R\New_codes_with_1week_lagged_data\Function_LQR_Bayesboot_Q_24h_v3.R')
+    DayAhead_Bayesboot = ro.globalenv['LQR_Bayesboot']
+    result_Qdem = np.zeros((3, 144))
+    for h in range(1, 145):
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            pred_for_r = ro.conversion.py2rpy(pred_for[h - 1][:])
+        result_Qdem_r = DayAhead_Bayesboot(pred_for_r, h, Nboot)
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            result_Qdem_0 = ro.conversion.rpy2py(result_Qdem_r)
+        temp = np.transpose(result_Qdem_0) * fac_Q
+        result_Qdem[0][h - 1] = temp[1][0]
+        result_Qdem[1][h - 1] = temp[2][0] - temp[1][0]
+        result_Qdem[2][h - 1] = temp[1][0] - temp[0][0]
+        print('qdem:' + str(h))
     return result_Qdem
 
 
@@ -235,13 +247,16 @@ def forecasting3(data0, name):
 
 def dayahead_digriflex(robust_par):
     fac_P, fac_Q = 0.1, 0.1
+    Nboot = 20
     mode_forec = 'r'  # 'r', 'b1', 'b2', 'mc'
     data_rt = access_data_rt()
     t_now = data_rt.index[-1]
     t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
     t_end_y = t_end - timedelta(minutes=10)
     t_now_y = data_rt.index[-1] - timedelta(days=1) + timedelta(minutes=10)
-    t_from = t_end - timedelta(days=2) + timedelta(minutes=10)
+    # t_from = t_end - timedelta(days=2) + timedelta(minutes=10)
+    t_from_1week = t_end - timedelta(days=6) + timedelta(minutes=10)
+    t_end_1week = t_end - timedelta(days=5)
     # irra_pred_da = data_rt['irra'][t_from:t_end].to_numpy().tolist()
     irra_pred_da = [data_rt['irra'][t_end:t_now].to_numpy().tolist() + data_rt['irra'][t_now_y:t_end_y].to_numpy().tolist(),
                     data_rt['pres'][t_end:t_now].to_numpy().tolist() + data_rt['pres'][t_now_y:t_end_y].to_numpy().tolist(),
@@ -254,14 +269,20 @@ def dayahead_digriflex(robust_par):
                     (np.average(data_rt['temp'][t_end:t_now].to_numpy())*np.ones(144)).tolist(),
                     (np.average(data_rt['wind'][t_end:t_now].to_numpy())*np.ones(144)).tolist()]
     irra_pred_da = np.transpose(np.array(irra_pred_da)).tolist()
-    Pdem_pred_da = data_rt['Pdem'][t_from:t_end].to_numpy().tolist()
-    Qdem_pred_da = data_rt['Qdem'][t_from:t_end].to_numpy().tolist()
+    # Pdem_pred_da = data_rt['Pdem'][t_from:t_end].to_numpy().tolist()
+    Pdem_pred_da = [data_rt['Pdem'][t_end:t_now].to_numpy().tolist() + data_rt['Pdem'][t_now_y:t_end_y].to_numpy().tolist(),
+                    data_rt['Qdem'][t_end:t_now].to_numpy().tolist() + data_rt['Qdem'][t_now_y:t_end_y].to_numpy().tolist(),
+                    data_rt['Pdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
+                    data_rt['Qdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
+                    (np.average(data_rt['Pdem'][t_end:t_now].to_numpy())*np.ones(144)).tolist(),
+                    (np.average(data_rt['Qdem'][t_end:t_now].to_numpy())*np.ones(144)).tolist()]
+    Pdem_pred_da = np.transpose(np.array(Pdem_pred_da)).tolist()
+    # Qdem_pred_da = data_rt['Qdem'][t_from:t_end].to_numpy().tolist()
+    Qdem_pred_da = Pdem_pred_da
     if mode_forec == 'r':
-        result_p_pv, result_irr = forecasting_pv_da(irra_pred_da)
-        result_p_dm = forecasting_active_power_da(Pdem_pred_da, fac_P)
-        result_q_dm = forecasting_reactive_power_da(Qdem_pred_da, fac_Q)
-        result_p_dm = result_p_dm
-        result_q_dm = result_q_dm
+        result_p_pv, result_irr = forecasting_pv_da(irra_pred_da, Nboot)
+        result_p_dm = forecasting_active_power_da(Pdem_pred_da, fac_P, Nboot)
+        result_q_dm = forecasting_reactive_power_da(Qdem_pred_da, fac_Q, Nboot)
     elif mode_forec == 'b1':
         dd = 30
         t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
@@ -294,7 +315,7 @@ def dayahead_digriflex(robust_par):
         result_q_dm = forecasting3(Qdem_pred_da, 'Demand reactive power (kVar)')
     result_p_pv = np.maximum(np.zeros((3, 144)), result_p_pv)
     result_Vmag = 0.03 * np.ones((2, 144))
-    result_SOC = [5, 0.2, 0.2]
+    result_SOC = [20, 0.2, 0.2]
     result_price = np.ones((6, 144))
     result_price[0][:] = 10 * result_price[0][:]
     result_price[1][:] = 0 * result_price[1][:]

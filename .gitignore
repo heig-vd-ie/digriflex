@@ -9,3 +9,6 @@ pyvenv.cfg
 .venv
 pip-selfcheck.json
 .idea
+venv
+.idea
+__pycache__
