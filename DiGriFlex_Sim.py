@@ -1,12 +1,4 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
-#### To Do lists:
-## - CM#0: The input of Cinergia must be equal to the load of school multiplied by fac_P, fac_Q = 0.1, 0.1
-## - CM#0: @AuxiliaryFunctions: R and X of lines, efficiencies data of battery, X of PVs (function "reine_parameters()")
-## - CM#0: For the test, I consider two things for SoC: first minimum SoC in Aux. Functions, then result_SoC in DiGriFlex_DA
-## - CM#0: I seperate simulation and test files in the folder "Result"
-## - CM#1: Finding power output from the irradiance and temperature
-
-
 #### Importing packages
 from DiGriFlex_RT import interface_control_digriflex
 # from DiGriFlex_DA import dayahead_digriflex

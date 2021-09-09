@@ -46,6 +46,7 @@ def interface_control_digriflex(Vec_Inp):
     file_to_read.close()
     _, Ligne_U, _, _, _, Charge_P, Charge_Q, Ond_P, Ond_Q, _, _, SOC, F_P_real, F_Q_real = \
         af.interface_meas(Vec_Inp)
+    SOC = 5.5
     # Cinergia_P_m, Cinergia_Q_m = Charge_P[11], Charge_Q[11]
     # ABB_P_m, ABB_Q_m = Ond_P[1], Ond_Q[1]
     ## Algorithm

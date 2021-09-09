@@ -247,7 +247,7 @@ def forecasting3(data0, name):
 
 def dayahead_digriflex(robust_par):
     fac_P, fac_Q = 0.1, 0.1
-    Nboot = 20
+    Nboot = 10
     mode_forec = 'r'  # 'r', 'b1', 'b2', 'mc'
     data_rt = access_data_rt()
     t_now = data_rt.index[-1]
@@ -258,24 +258,26 @@ def dayahead_digriflex(robust_par):
     t_from_1week = t_end - timedelta(days=6) + timedelta(minutes=10)
     t_end_1week = t_end - timedelta(days=5)
     # irra_pred_da = data_rt['irra'][t_from:t_end].to_numpy().tolist()
-    irra_pred_da = [data_rt['irra'][t_end:t_now].to_numpy().tolist() + data_rt['irra'][t_now_y:t_end_y].to_numpy().tolist(),
-                    data_rt['pres'][t_end:t_now].to_numpy().tolist() + data_rt['pres'][t_now_y:t_end_y].to_numpy().tolist(),
-                    data_rt['relh'][t_end:t_now].to_numpy().tolist() + data_rt['relh'][t_now_y:t_end_y].to_numpy().tolist(),
-                    data_rt['temp'][t_end:t_now].to_numpy().tolist() + data_rt['temp'][t_now_y:t_end_y].to_numpy().tolist(),
-                    data_rt['wind'][t_end:t_now].to_numpy().tolist() + data_rt['wind'][t_now_y:t_end_y].to_numpy().tolist(),
-                    (np.average(data_rt['irra'][t_end:t_now].to_numpy())*np.ones(144)).tolist(),
-                    (np.average(data_rt['pres'][t_end:t_now].to_numpy())*np.ones(144)).tolist(),
-                    (np.average(data_rt['relh'][t_end:t_now].to_numpy())*np.ones(144)).tolist(),
-                    (np.average(data_rt['temp'][t_end:t_now].to_numpy())*np.ones(144)).tolist(),
-                    (np.average(data_rt['wind'][t_end:t_now].to_numpy())*np.ones(144)).tolist()]
+    irra_pred_da = [
+        data_rt['irra'][t_end:t_now].to_numpy().tolist() + data_rt['irra'][t_now_y:t_end_y].to_numpy().tolist(),
+        data_rt['pres'][t_end:t_now].to_numpy().tolist() + data_rt['pres'][t_now_y:t_end_y].to_numpy().tolist(),
+        data_rt['relh'][t_end:t_now].to_numpy().tolist() + data_rt['relh'][t_now_y:t_end_y].to_numpy().tolist(),
+        data_rt['temp'][t_end:t_now].to_numpy().tolist() + data_rt['temp'][t_now_y:t_end_y].to_numpy().tolist(),
+        data_rt['wind'][t_end:t_now].to_numpy().tolist() + data_rt['wind'][t_now_y:t_end_y].to_numpy().tolist(),
+        (np.average(data_rt['irra'][t_end:t_now].to_numpy()) * np.ones(144)).tolist(),
+        (np.average(data_rt['pres'][t_end:t_now].to_numpy()) * np.ones(144)).tolist(),
+        (np.average(data_rt['relh'][t_end:t_now].to_numpy()) * np.ones(144)).tolist(),
+        (np.average(data_rt['temp'][t_end:t_now].to_numpy()) * np.ones(144)).tolist(),
+        (np.average(data_rt['wind'][t_end:t_now].to_numpy()) * np.ones(144)).tolist()]
     irra_pred_da = np.transpose(np.array(irra_pred_da)).tolist()
     # Pdem_pred_da = data_rt['Pdem'][t_from:t_end].to_numpy().tolist()
-    Pdem_pred_da = [data_rt['Pdem'][t_end:t_now].to_numpy().tolist() + data_rt['Pdem'][t_now_y:t_end_y].to_numpy().tolist(),
-                    data_rt['Qdem'][t_end:t_now].to_numpy().tolist() + data_rt['Qdem'][t_now_y:t_end_y].to_numpy().tolist(),
-                    data_rt['Pdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
-                    data_rt['Qdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
-                    (np.average(data_rt['Pdem'][t_end:t_now].to_numpy())*np.ones(144)).tolist(),
-                    (np.average(data_rt['Qdem'][t_end:t_now].to_numpy())*np.ones(144)).tolist()]
+    Pdem_pred_da = [
+        data_rt['Pdem'][t_end:t_now].to_numpy().tolist() + data_rt['Pdem'][t_now_y:t_end_y].to_numpy().tolist(),
+        data_rt['Qdem'][t_end:t_now].to_numpy().tolist() + data_rt['Qdem'][t_now_y:t_end_y].to_numpy().tolist(),
+        data_rt['Pdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
+        data_rt['Qdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
+        (np.average(data_rt['Pdem'][t_end:t_now].to_numpy()) * np.ones(144)).tolist(),
+        (np.average(data_rt['Qdem'][t_end:t_now].to_numpy()) * np.ones(144)).tolist()]
     Pdem_pred_da = np.transpose(np.array(Pdem_pred_da)).tolist()
     # Qdem_pred_da = data_rt['Qdem'][t_from:t_end].to_numpy().tolist()
     Qdem_pred_da = Pdem_pred_da
@@ -348,6 +350,7 @@ def dayahead_digriflex(robust_par):
     file_to_store.close()
     os.system(python64_path + ' -c ' +
               '\"import sys;' +
+              'import os;' +
               'from datetime import datetime;' +
               'print(sys.version);' +
               'sys.path.insert(0, r\'' + dir_path + '\');'
@@ -366,7 +369,7 @@ def dayahead_digriflex(robust_par):
               'P_SC, Q_SC, RPP_SC, RPN_SC, RQP_SC, RQN_SC, SOC_dersired, prices_vec2, Obj = ' +
               'of.da_opt_digriflex(grid_inp, V_mag, result_p_pv, result_p_dm, result_q_dm, result_SOC, result_price, robust_par);' +
               'now = datetime.now();' + 'tomorrow = str(now.year) + str(now.month) + str(now.day + 1);' +
-              'file_to_store = open(r\'' + dir_path + '\' + r\'/Result/res\' + tomorrow + \'.pickle\', \'wb\');' +
+              'file_to_store = open(r\'' + dir_path + '\' + r\'/Result/tmp_da.pickle\', \'wb\');' +
               'pickle.dump(P_SC, file_to_store);' +
               'pickle.dump(Q_SC, file_to_store);' +
               'pickle.dump(RPP_SC, file_to_store);' +
@@ -378,18 +381,32 @@ def dayahead_digriflex(robust_par):
               'pickle.dump(Obj, file_to_store);' +
               'file_to_store.close()\"'
               )
-    # now = datetime.now()
-    # tomorrow = str(now.year) + str(now.month) + str(now.day + 1)
-    # file_to_read = open(dir_path + r"/Result/res" + tomorrow + ".pickle", "rb")
-    # P_SC = pickle.load(file_to_read)
-    # Q_SC = pickle.load(file_to_read)
-    # RPP_SC = pickle.load(file_to_read)
-    # RPN_SC = pickle.load(file_to_read)
-    # RQP_SC = pickle.load(file_to_read)
-    # RQN_SC = pickle.load(file_to_read)
-    # SOC_dersired = pickle.load(file_to_read)
-    # prices_vec = pickle.load(file_to_read)
-    # file_to_read.close()
+    now = datetime.now()
+    file_to_read = open(dir_path + r"/Result/tmp_da.pickle", "rb")
+    P_SC = pickle.load(file_to_read)
+    Q_SC = pickle.load(file_to_read)
+    RPP_SC = pickle.load(file_to_read)
+    RPN_SC = pickle.load(file_to_read)
+    RQP_SC = pickle.load(file_to_read)
+    RQN_SC = pickle.load(file_to_read)
+    SOC_dersired = pickle.load(file_to_read)
+    prices_vec = pickle.load(file_to_read)
+    Obj = pickle.load(file_to_read)
+    file_to_read.close()
+    tomorrow = str(now.year) + str(now.month) + str(now.day + 1)
+    if (not os.path.isfile(dir_path + r"/Result/res" + tomorrow + ".pickle")) or (Obj != 0):
+        print(1)
+        file_to_store = open(dir_path + r"/Result/res" + tomorrow + ".pickle", "wb")
+        pickle.dump(P_SC, file_to_store)
+        pickle.dump(Q_SC, file_to_store)
+        pickle.dump(RPP_SC, file_to_store)
+        pickle.dump(RPN_SC, file_to_store)
+        pickle.dump(RQP_SC, file_to_store)
+        pickle.dump(RQN_SC, file_to_store)
+        pickle.dump(SOC_dersired, file_to_store)
+        pickle.dump(prices_vec, file_to_store)
+        pickle.dump(Obj, file_to_store)
+        file_to_store.close()
     return True
 
 

@@ -76,7 +76,7 @@ def reine_parameters():
                                  / (1000 * parameters['Ond_Cap'][x]) for x in range(3)]
     parameters['Ond_cos_PV'] = [0.89, 0.89, 0.89]
     # Con = [Battery]
-    parameters['Con_SOC_min_kWh'] = [0]  # [64*5/100]
+    parameters['Con_SOC_min_kWh'] = [64*5/100]
     parameters['Con_SOC_max_kWh'] = [64]
     parameters['Con_S_max_kVA'] = [120]
     parameters['Con_P_max_kW'] = [100]
