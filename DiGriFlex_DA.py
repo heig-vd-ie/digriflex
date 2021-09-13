@@ -72,7 +72,7 @@ def forecasting_active_power_da(pred_for, fac_P, Nboot):
     """
     ## Calling R function
     r = ro.r
-    r['source'](dir_path + r'\Functions_R\New_codes_with_1week_lagged_data\Function_LQR_Bayesboot_P_24h_v3.R')
+    r['source'](dir_path + r'\Functions_R\Re__Modification_of_the_code\Function_LQR_Bayesboot_P_24h_v4.R')
     DayAhead_Bayesboot = ro.globalenv['LQR_Bayesboot']
     result_Pdem = np.zeros((3, 144))
     for h in range(1, 145):
@@ -98,7 +98,7 @@ def forecasting_reactive_power_da(pred_for, fac_Q, Nboot):
     """
     ## Calling R function
     r = ro.r
-    r['source'](dir_path + r'\Functions_R\New_codes_with_1week_lagged_data\Function_LQR_Bayesboot_Q_24h_v3.R')
+    r['source'](dir_path + r'\Functions_R\Re__Modification_of_the_code\Function_LQR_Bayesboot_Q_24h_v4.R')
     DayAhead_Bayesboot = ro.globalenv['LQR_Bayesboot']
     result_Qdem = np.zeros((3, 144))
     for h in range(1, 145):
@@ -271,9 +271,18 @@ def dayahead_digriflex(robust_par):
         (np.average(data_rt['wind'][t_end:t_now].to_numpy()) * np.ones(144)).tolist()]
     irra_pred_da = np.transpose(np.array(irra_pred_da)).tolist()
     # Pdem_pred_da = data_rt['Pdem'][t_from:t_end].to_numpy().tolist()
+    # Pdem_pred_da = [
+    #     data_rt['Pdem'][t_end:t_now].to_numpy().tolist() + data_rt['Pdem'][t_now_y:t_end_y].to_numpy().tolist(),
+    #     data_rt['Qdem'][t_end:t_now].to_numpy().tolist() + data_rt['Qdem'][t_now_y:t_end_y].to_numpy().tolist(),
+    #     data_rt['Pdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
+    #     data_rt['Qdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
+    #     (np.average(data_rt['Pdem'][t_end:t_now].to_numpy()) * np.ones(144)).tolist(),
+    #     (np.average(data_rt['Qdem'][t_end:t_now].to_numpy()) * np.ones(144)).tolist()]
     Pdem_pred_da = [
         data_rt['Pdem'][t_end:t_now].to_numpy().tolist() + data_rt['Pdem'][t_now_y:t_end_y].to_numpy().tolist(),
         data_rt['Qdem'][t_end:t_now].to_numpy().tolist() + data_rt['Qdem'][t_now_y:t_end_y].to_numpy().tolist(),
+        data_rt['Pdemlag2_for'][t_end:t_now].to_numpy().tolist() + data_rt['Pdemlag2_for'][t_now_y:t_end_y].to_numpy().tolist(),
+        data_rt['Qdemlag2_for'][t_end:t_now].to_numpy().tolist() + data_rt['Qdemlag2_for'][t_now_y:t_end_y].to_numpy().tolist(),
         data_rt['Pdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
         data_rt['Qdem'][t_from_1week:t_end_1week].to_numpy().tolist(),
         (np.average(data_rt['Pdem'][t_end:t_now].to_numpy()) * np.ones(144)).tolist(),

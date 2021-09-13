@@ -33,6 +33,7 @@ def interface_control_digriflex(Vec_Inp):
     ## Reading inputs
     fac_P, fac_Q = 0.1, 0.1
     now = datetime.now()
+    timestep = now.hour * 6 + math.floor(now.minute / 10)
     today = str(now.year) + str(now.month) + str(now.day)
     file_to_read = open(dir_path + r"/Result/res" + today + ".pickle", "rb")
     P_SC = pickle.load(file_to_read)
@@ -46,7 +47,10 @@ def interface_control_digriflex(Vec_Inp):
     file_to_read.close()
     _, Ligne_U, _, _, _, Charge_P, Charge_Q, Ond_P, Ond_Q, _, _, SOC, F_P_real, F_Q_real = \
         af.interface_meas(Vec_Inp)
-    SOC = 5.5
+    Ond_P = float(Ond_P[1])
+    Ond_Q = float(Ond_Q[1])
+    if SOC == 0:
+        SOC = SOC_dersired[timestep] * 100 / 64
     # Cinergia_P_m, Cinergia_Q_m = Charge_P[11], Charge_Q[11]
     # ABB_P_m, ABB_Q_m = Ond_P[1], Ond_Q[1]
     ## Algorithm
@@ -58,17 +62,15 @@ def interface_control_digriflex(Vec_Inp):
         ["Irralag144_for", "Irralag2_for", "Irralag3_for", "Irralag4_for", "Irralag5_for", "Irralag6_for"]]
     # pred_for = pd.read_csv(dir_path + r"\Data\pred_for.csv")
     # pred_for = pd.DataFrame(pred_for).set_index('Unnamed: 0')
-    now = datetime.now()
-    timestep = (now.hour - 1) * 6 + math.floor(now.minute / 10) + 2
-    result_p_pv, result_irra = forecasting_pv_rt(pred_for, timestep)
+    result_p_pv, result_irra = forecasting_pv_rt(pred_for, timestep + 1)
     print(1)
     pred_for = data_rt[
         ["Pdemlag144_for", "Pdemlag2_for", "Pdemlag3_for", "Pdemlag4_for", "Pdemlag5_for", "Pdemlag6_for"]]
-    result_p_dm = forecasting_active_power_rt(pred_for, timestep, fac_P)
+    result_p_dm = forecasting_active_power_rt(pred_for, timestep + 1, fac_P)
     print(1)
     pred_for = data_rt[
         ["Qdemlag144_for", "Qdemlag2_for", "Qdemlag3_for", "Qdemlag4_for", "Qdemlag5_for", "Qdemlag6_for"]]
-    result_q_dm = forecasting_reactive_power_rt(pred_for, timestep, fac_Q)
+    result_q_dm = forecasting_reactive_power_rt(pred_for, timestep + 1, fac_Q)
     print(1)
     grid_inp = af.grid_topology_sim(network_name, Vec_Inp)
     P_net = P_SC[timestep] + random.triangular(-RPN_SC[timestep], RPP_SC[timestep], 0)  # Triangular dist. of reserves activation
