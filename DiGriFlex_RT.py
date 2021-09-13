@@ -145,7 +145,7 @@ def interface_control_digriflex(Vec_Inp):
     ####################################################################################
     ## Defining outputs
     Vec_Out = [0] * 16
-    Vec_Out[0] = Battery_P_sp  # Output in kW // sum of three phase
+    Vec_Out[0] = - Battery_P_sp  # Output in kW // sum of three phase
     Vec_Out[1] = Battery_Q_sp  # Output in kVar // sum of three phase
     Vec_Out[4] = ABB_P_sp
     Vec_Out[5] = ABB_c_sp

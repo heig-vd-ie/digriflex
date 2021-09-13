@@ -1329,7 +1329,7 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
         meas["DA_Q+"] = -np.array(DA_QQ) + np.array(DA_RQQ_pos)
         meas["DA_P-"] = -np.array(DA_PP) - np.array(DA_RPP_neg)
         meas["DA_Q-"] = -np.array(DA_QQ) - np.array(DA_RQQ_neg)
-        af.figuring(grid_inp, meas_inp, meas, "DA_Offers", "robust" + str(1 - round(prob, 3)))
+        # af.figuring(grid_inp, meas_inp, meas, "DA_Offers", "robust" + str(1 - round(prob, 3)))
         # meas2 = af.SE_time_series(grid_inp, meas_inp, "robust"+str(prob))
         DA_result["Solution_PV_P"] = Solution_PV_PP
         DA_result["Solution_PV_Q"] = Solution_PV_QQ
@@ -1878,7 +1878,7 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
         meas["DA_Q+"] = -np.array(DA_QQ) + np.array(DA_RQQ_pos)
         meas["DA_P-"] = -np.array(DA_PP) - np.array(DA_RPP_neg)
         meas["DA_Q-"] = -np.array(DA_QQ) - np.array(DA_RQQ_neg)
-        af.figuring(grid_inp, meas_inp, meas, "DA_Offers", "stochastic")
+        # af.figuring(grid_inp, meas_inp, meas, "DA_Offers", "stochastic")
         # meas2 = af.SE_time_series(grid_inp, meas_inp, case_name)
         DA_result["Solution_PV_P"] = Solution_PV_PP
         DA_result["Solution_PV_Q"] = Solution_PV_QQ
