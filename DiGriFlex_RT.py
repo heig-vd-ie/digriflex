@@ -139,7 +139,8 @@ def interface_control_digriflex(Vec_Inp):
                         round(result_p_pv, 5), round(result_irra, 2),
                         round(result_p_dm, 5), round(result_q_dm, 5),
                         round(ABB_P_exp, 5), round(F_P, 5), round(F_Q, 5),
-                        Ond_P, Ond_Q, SOC, F_P_real, F_Q_real, P_net, Q_net
+                        Ond_P, Ond_Q, SOC, F_P_real, F_Q_real, P_net, Q_net,
+                        - Battery_P_sp, Battery_Q_sp, ABB_P_sp, ABB_c_sp
                         ]])
     df.to_csv(dir_path + r'\Result\realtime_data.csv', mode='a', header=False)
     ####################################################################################
