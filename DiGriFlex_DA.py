@@ -248,7 +248,7 @@ def forecasting3(data0, name):
 def dayahead_digriflex(robust_par):
     fac_P, fac_Q = 0.1, 0.1
     Nboot = 10
-    mode_forec = 'r'  # 'r', 'b1', 'b2', 'mc'
+    mode_forec = 'b1'  # 'r', 'b1', 'b2', 'mc'
     data_rt = access_data_rt()
     t_now = data_rt.index[-1]
     t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
@@ -326,7 +326,7 @@ def dayahead_digriflex(robust_par):
         result_q_dm = forecasting3(Qdem_pred_da, 'Demand reactive power (kVar)')
     result_p_pv = np.maximum(np.zeros((3, 144)), result_p_pv)
     result_Vmag = 0.03 * np.ones((2, 144))
-    result_SOC = [20, 0.2, 0.2]
+    result_SOC = [50, 0.75, 0.75]
     result_price = np.ones((6, 144))
     result_price[0][:] = 10 * result_price[0][:]
     result_price[1][:] = 0 * result_price[1][:]
@@ -403,6 +403,7 @@ def dayahead_digriflex(robust_par):
     Obj = pickle.load(file_to_read)
     file_to_read.close()
     tomorrow = str(now.year) + str(now.month) + str(now.day + 1)
+    print(Obj)
     if (not os.path.isfile(dir_path + r"/Result/res" + tomorrow + ".pickle")) or (Obj != 0):
         print(1)
         file_to_store = open(dir_path + r"/Result/res" + tomorrow + ".pickle", "wb")

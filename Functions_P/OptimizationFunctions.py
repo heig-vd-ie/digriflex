@@ -25,14 +25,14 @@ def rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC
     ABB_steps = [0, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     battery_P_cap_pos = min([grid_inp["storage_elements"][0]["P_max_kW"],
                              (grid_inp["storage_elements"][0]["SOC_max_kWh"]
-                             - SOC * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
+                              - SOC * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
     battery_P_cap_neg = max([-grid_inp["storage_elements"][0]["P_max_kW"],
                              (grid_inp["storage_elements"][0]["SOC_min_kWh"]
-                             - SOC * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
+                              - SOC * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
     battery_Q_cap = np.sqrt(grid_inp["storage_elements"][0]["S_max_kVA"] ** 2 -
                             max([battery_P_cap_pos, - battery_P_cap_neg]) ** 2)
     if forecast_P - P_net <= battery_P_cap_pos:
-        battery_P_sp = max([forecast_P - P_net, battery_P_cap_neg])
+        battery_P_sp = max([- forecast_P + P_net, battery_P_cap_neg])
         ABB_P_sp = 100
     else:
         battery_P_sp = battery_P_cap_pos
@@ -47,9 +47,10 @@ def rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC
         ABB_c_sp, _ = af.find_nearest([-0.89, 0.89], np.sign(Q_net + battery_Q_sp - forecast_Q - np.finfo(float).eps))
         ABB_c_sp = - ABB_c_sp  # Because cos<0 = capacitive based on datasheet
     _, ABB_P_sp = af.find_nearest(ABB_steps, ABB_P_sp)
-    F_P = ABB_P_exp - battery_P_sp
-    F_Q = - ABB_c_sp * ABB_P_exp - battery_Q_sp
-    return ABB_P_sp, round(ABB_c_sp, 3), round(battery_P_sp, 3), round(battery_Q_sp, 3), ABB_P_exp, F_P, F_Q
+    F_P = ABB_P_exp + battery_P_sp - forecast_dm[0]
+    F_Q = - np.sin(np.arctan(ABB_c_sp)) * ABB_P_exp + battery_Q_sp + forecast_Q
+    print(ABB_P_sp, round(ABB_c_sp, 3), round(battery_P_sp, 3), round(battery_Q_sp, 3), ABB_P_exp, F_P, - F_Q)
+    return ABB_P_sp, round(ABB_c_sp, 3), round(battery_P_sp, 3), round(battery_Q_sp, 3), ABB_P_exp, - F_P, - F_Q
 
 
 def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SOC_battery, SOC_desired, prices_vec):
@@ -58,11 +59,12 @@ def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SO
     Inputs: prices_vec = [loss_coef, battery_coef, pv_coef, dev_coef]
     Outputs: ABB_P_sp, ABB_c_sp, battery_P_sp, battery_Q_sp
     """
+    P_net, Q_net = - P_net, - Q_net
     rt_meas_inp = {}
     meas_inp = {}
     rt_meas_inp["delta"] = 0.001
     rt_meas_inp["Loss_Coeff"] = prices_vec[0]
-    rt_meas_inp["ST_Coeff"] = prices_vec[1]*0.1
+    rt_meas_inp["ST_Coeff"] = prices_vec[1]
     rt_meas_inp["PV_Coeff"] = prices_vec[2]
     rt_meas_inp["dev_Coeff"] = prices_vec[3]
     meas_inp["DeltaT"] = 10 / 60
@@ -95,7 +97,7 @@ def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SO
         F_Q = DA_result["Solution_con_Q"]
         ABB_P_sp = round(ABB_P_sp[0], 3)
         ABB_Q_sp = round(ABB_Q_sp[0], 3)
-        Battery_P_sp = - round(Battery_P_sp[0], 3)
+        Battery_P_sp = round(Battery_P_sp[0], 3)
         Battery_Q_sp = - round(Battery_Q_sp[0], 3)
         print(f'Success, {ABB_P_sp}, {ABB_Q_sp}, {Battery_P_sp}, {Battery_Q_sp}')
         F_P = F_P[0]
@@ -111,9 +113,11 @@ def rt_opt_digriflex(grid_inp, V_mag, P_net, Q_net, forecast_pv, forecast_dm, SO
         if ABB_P_exp > forecast_pv - 0.1:
             ABB_P_sp = 100
         _, ABB_P_sp = af.find_nearest(ABB_steps, ABB_P_sp)
+        # Battery_P_sp = - 15
     else:
         ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp, ABB_P_exp, F_P, F_Q = \
             rt_following_digriflex(grid_inp, P_net, Q_net, forecast_pv, forecast_dm, SOC_battery)
+        # Battery_P_sp = 10
     return ABB_P_sp, ABB_c_sp, Battery_P_sp, Battery_Q_sp, ABB_P_exp, F_P, F_Q
 
 
@@ -221,8 +225,8 @@ def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
         ST_Eff_pos[nn["index"]] = nn["Eff_C"]
         ST_Eff_neg[nn["index"]] = nn["Eff_D"]
         ST_Eff_LC[nn["index"]] = nn["Eff_LC"]
-        ST_SOC_t_1[nn["index"]] = rt_meas_inp["ST_SOC_t_1"][s]
-        ST_SOC_des[nn["index"]] = rt_meas_inp["ST_SOC_des"][s]
+        ST_SOC_t_1[nn["index"]] = rt_meas_inp["ST_SOC_t_1"][s] * 64 / 100
+        ST_SOC_des[nn["index"]] = rt_meas_inp["ST_SOC_des"][s] * 64  / 100
     print("- Storage data is generated for optimization.")
     ### Transmission System and Cost Function Parameters
     ConPoint_Set = range(np.size(grid_inp["grid_formers"], 0))
@@ -493,6 +497,7 @@ def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
     PROB_RT.setObjective(1000 * DeltaT * OBJ_RT_MARKET.sum(), GRB.MINIMIZE)
     PROB_RT.Params.BarHomogeneous = 1
     PROB_RT.optimize()
+    dres = 0
     ### Solution
     try:
         # print(PROB_RT.getAttr('x', Line_P_t))
@@ -500,6 +505,8 @@ def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
         # print(PROB_RT.getAttr('x', Net_P))
         # print(PROB_RT.getAttr('x', Net_Q))
         # print(PROB_RT.getAttr('x', Line_f))
+        # print(PROB_RT.getAttr('x', ConPoint_P))
+        # print(PROB_RT.getAttr('x', ConPoint_Q))
         Solution_con_P = PROB_RT.getAttr('x', ConPoint_P)
         Solution_con_Q = PROB_RT.getAttr('x', ConPoint_Q)
         Solution_PV_P = PROB_RT.getAttr('x', PV_P)
@@ -508,10 +515,10 @@ def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
         Solution_ST_Q = PROB_RT.getAttr('x', ST_Q)
         Solution_ST_SOC = PROB_RT.getAttr('x', ST_SOC)
         # Solution_ST_SOC2 = PROB_RT.getAttr('x', ST_SOC_tilde)
-        Solution_P_dev_pos = PROB_RT.getAttr('x', ConPoint_P_dev_pos)
-        Solution_P_dev_neg = PROB_RT.getAttr('x', ConPoint_P_dev_neg)
-        Solution_Q_dev_pos = PROB_RT.getAttr('x', ConPoint_P_dev_pos)
-        Solution_Q_dev_neg = PROB_RT.getAttr('x', ConPoint_P_dev_neg)
+        # Solution_P_dev_pos = PROB_RT.getAttr('x', ConPoint_P_dev_pos)
+        # Solution_P_dev_neg = PROB_RT.getAttr('x', ConPoint_P_dev_neg)
+        # Solution_Q_dev_pos = PROB_RT.getAttr('x', ConPoint_P_dev_pos)
+        # Solution_Q_dev_neg = PROB_RT.getAttr('x', ConPoint_P_dev_neg)
         Solution_ST_SOCC = [Solution_ST_SOC[s] for s in ST_Set]
         DA_result["Solution_ST_SOC_RT"] = Solution_ST_SOCC
         DA_result["Solution_PV_P"] = Solution_PV_P
@@ -520,10 +527,11 @@ def RT_Optimization(rt_meas_inp, meas_inp, grid_inp, DA_result):
         DA_result["Solution_ST_Q"] = Solution_ST_Q
         DA_result["Solution_con_P"] = Solution_con_P
         DA_result["Solution_con_Q"] = Solution_con_Q
-        dres = (Solution_P_dev_pos[0] + Solution_P_dev_neg[0] + Solution_Q_dev_pos[0] + Solution_Q_dev_neg[0] >
-                rt_meas_inp["delta"])
+        # dres = (Solution_P_dev_pos[0] + Solution_P_dev_neg[0] + Solution_Q_dev_pos[0] + Solution_Q_dev_neg[0] >
+        #        rt_meas_inp["delta"])
         DA_result["time_out"] = False
-    except:
+    except Exception as e:
+        print(e)
         DA_result["Solution_ST_SOC_RT"] = ST_SOC_t_1
         DA_result["time_out"] = True
         dres = 1
@@ -590,7 +598,7 @@ def da_opt_digriflex(grid_inp, V_mag, forecast_pv, forecast_p_dm, forecast_q_dm,
         RPP_SC, RPN_SC, RQP_SC, RQN_SC = [0.4] * 144, [0.4] * 144, [0.2] * 144, [0.2] * 144
         SOC_dersired = [10] * 144
         Obj = 0
-    prices_vec2 = [0, 1, 100, 1000]
+    prices_vec2 = [1, 1, 100, 1000]
     return P_SC, Q_SC, RPP_SC, RPN_SC, RQP_SC, RQN_SC, SOC_dersired, prices_vec2, Obj
 
 
@@ -611,7 +619,7 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
     prob = case_inp['Robust_prob']
     conf_multip = 0
     if prob != 0:
-        conf_multip = np.sqrt((1-prob)/prob)  # norm.ppf(1 - prob)
+        conf_multip = np.sqrt((1 - prob) / prob)  # norm.ppf(1 - prob)
     #### Main Sets
     Time_Set = range(meas_inp["Nt"])
     DeltaT = meas_inp["DeltaT"]
@@ -1035,6 +1043,9 @@ def DA_Optimization_Robust(case_name, case_inp, grid_inp, meas_inp, fore_inp, ou
                                   - ST_P_pos[s, t] * DeltaT / ST_Eff_pos[s])
                 PROB_DA.addConstr(ST_SOC_tilde[s, t] == ST_Eff_LV[s] * ST_SOC[s, t - 1]
                                   - ST_P[s, t] * DeltaT)
+            if t == 143:
+                PROB_DA.addConstr(ST_SOC[s, t] <= ST_SOC_0[s] + zeta_p_ST[s])
+                PROB_DA.addConstr(ST_SOC[s, t] >= ST_SOC_0[s] - zeta_n_ST[s])
             # (22d)
             PROB_DA.addConstr(ST_P[s, t] == ST_P_pos[s, t] + ST_P_neg[s, t])
             # (22e)
@@ -1806,8 +1817,8 @@ def DA_Optimization(case_name, case_inp, grid_inp, meas_inp, fore_inp, output_DF
                               - max([LAMBDA_P_DA_EN[t], LAMBDA_Q_DA_EN[t], LAMBDA_P_DA_RS_pos[t], LAMBDA_P_DA_RS_neg[t],
                                      LAMBDA_Q_DA_RS_pos[t], LAMBDA_Q_DA_RS_neg[t]]) * 10
                               * sum(ConPoint_P_dev_pos[f, t, om] + ConPoint_P_dev_neg[f, t, om]
-                                            + ConPoint_Q_dev_pos[f, t, om] + ConPoint_Q_dev_neg[f, t, om]
-                                            for om in Scen_Omega_Set))
+                                    + ConPoint_Q_dev_pos[f, t, om] + ConPoint_Q_dev_neg[f, t, om]
+                                    for om in Scen_Omega_Set))
             # constraints for defining deployed reserves
             PROB_DA.addConstr(ConPoint_P[f, t, om] == ConPoint_P_DA_EN[f, t]
                               - ConPoint_fac_P_pos[f, t, om] * ConPoint_P_DA_RS_pos[f, t]

@@ -20,6 +20,8 @@ print(sys.version)
 dir_path = r"C:/Users/" + os.environ.get('USERNAME') + r"/Desktop/DiGriFlex_Code"
 python64_path = r"C:/Users/" + os.environ.get('USERNAME') + r"/AppData/Local/Programs/Python/Python39/python.exe"
 network_name = "Case_4bus_DiGriFlex"  # Defining the network
+
+
 # network_name = "Case_LabVIEW"
 
 
@@ -31,6 +33,8 @@ def interface_control_digriflex(Vec_Inp):
     Q Cinergia, P1 SOP, Q1 SOP, P2 SOP, Q2 SOP, P GM, Q GM]
     """
     ## Reading inputs
+    battery_test_mode = False
+    battery_comp_mode = True
     fac_P, fac_Q = 0.1, 0.1
     now = datetime.now()
     timestep = now.hour * 6 + math.floor(now.minute / 10)
@@ -51,6 +55,8 @@ def interface_control_digriflex(Vec_Inp):
     Ond_Q = float(Ond_Q[1])
     if SOC == 0:
         SOC = SOC_dersired[timestep] * 100 / 64
+    else:
+        SOC = SOC
     # Cinergia_P_m, Cinergia_Q_m = Charge_P[11], Charge_Q[11]
     # ABB_P_m, ABB_Q_m = Ond_P[1], Ond_Q[1]
     ## Algorithm
@@ -73,8 +79,12 @@ def interface_control_digriflex(Vec_Inp):
     result_q_dm = forecasting_reactive_power_rt(pred_for, timestep + 1, fac_Q)
     print(1)
     grid_inp = af.grid_topology_sim(network_name, Vec_Inp)
-    P_net = P_SC[timestep] + random.triangular(-RPN_SC[timestep], RPP_SC[timestep], 0)  # Triangular dist. of reserves activation
-    Q_net = Q_SC[timestep] + random.triangular(-RQN_SC[timestep], RQP_SC[timestep], 0)  # Triangular dist. of reserves activation
+    P_net = P_SC[timestep] + 0.5 * RPN_SC[timestep] - 0 * RPP_SC[timestep]
+    # - RPN_SC[timestep] + (timestep / 144) * (RPP_SC[timestep] + RPN_SC[timestep])
+    # 0 * random.triangular(-RPN_SC[timestep], RPP_SC[timestep], 0) Triangular dist. of reserves activation
+    Q_net = Q_SC[timestep] + 0 * RQN_SC[timestep] - 0 * RQP_SC[timestep]
+    # - RQN_SC[timestep] / 5 + (timestep / 144) * (RQP_SC[timestep] + RQN_SC[timestep]) / 5
+    # 0 * random.triangular(-RQN_SC[timestep], RQP_SC[timestep], 0)  # Triangular dist. of reserves activation
     file_to_store = open(dir_path + r"/Result/tmp_rt.pickle", "wb")
     pickle.dump(grid_inp, file_to_store)
     pickle.dump(400, file_to_store)  # Ligne_U[0] * np.sqrt(3)
@@ -139,19 +149,49 @@ def interface_control_digriflex(Vec_Inp):
                         round(result_p_pv, 5), round(result_irra, 2),
                         round(result_p_dm, 5), round(result_q_dm, 5),
                         round(ABB_P_exp, 5), round(F_P, 5), round(F_Q, 5),
-                        Ond_P, Ond_Q, SOC, F_P_real, F_Q_real, P_net, Q_net,
+                        Ond_P, Ond_Q, SOC, F_P_real, F_Q_real, -P_net, -Q_net,
                         - Battery_P_sp, Battery_Q_sp, ABB_P_sp, ABB_c_sp
                         ]])
     df.to_csv(dir_path + r'\Result\realtime_data.csv', mode='a', header=False)
     ####################################################################################
     ## Defining outputs
     Vec_Out = [0] * 16
-    Vec_Out[0] = - Battery_P_sp  # Output in kW // sum of three phase
+    Vec_Out[0] = Battery_P_sp  # Output in kW // sum of three phase
     Vec_Out[1] = Battery_Q_sp  # Output in kVar // sum of three phase
     Vec_Out[4] = ABB_P_sp
     Vec_Out[5] = ABB_c_sp
     # Vec_Out[8] = data_rt.iloc[-1]['Pdemlag2_for'] * fac_P  # Output in kW // sum of three phase
     # Vec_Out[9] = data_rt.iloc[-1]['Qdemlag2_for'] * fac_Q  # Output in kVar // sum of three phase
+    if battery_test_mode:
+        col = ['0', 'now', 'step']
+        try:
+            df = pd.read_csv(dir_path + r'/step.csv', names=col, header=None)
+            step = df['step'].values
+            step = step[-1]
+        except:
+            step = 0
+        print(step)
+        profile1 = 5 - 0
+        profile2 = -5 + step
+        Vec_Out[0] = 50
+        Vec_Out[1] = 0
+        step = step + 1
+        df = pd.DataFrame([[now, step]])
+        df.to_csv(dir_path + r'\step.csv', mode='a', header=False)
+    if battery_comp_mode:
+        P_sp = Vec_Out[0]
+        Q_sp = Vec_Out[1]
+        print(P_sp, Q_sp)
+        S_sp = P_sp * P_sp + Q_sp * Q_sp
+        Vec_Out[1] = (Q_sp - 2.4654) / 0.9723
+        if S_sp <= 200:
+            Vec_Out[0] = (P_sp + 0.2016 + 0.0027 * Q_sp + 0.0130 * Q_sp * Q_sp)\
+                         / (0.6966 + 0.0090 * Q_sp)
+        elif S_sp <= 400:
+            Vec_Out[0] = (P_sp - 0.1800 + 0.0749 * Q_sp + 0.0053 * Q_sp * Q_sp) \
+                         / (0.9360 - 0.0276 * Q_sp)
+        else:
+            Vec_Out[0] = P_sp
     return Vec_Out
 
 
@@ -311,7 +351,6 @@ def forecasting_reactive_power_rt(pred_for, time_step, fac_Q):
         result_Qdem = ro.conversion.rpy2py(result_Qdem_r)
     result_Qdem = result_Qdem[0] * fac_Q
     return result_Qdem
-
 
 #### TESTING
 # Vec_Inp0 = open(dir_path + r"\Data\test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
