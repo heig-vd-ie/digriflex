@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "digriflex_code"
+version = "0.1.0"
+description = ""
+authors = ["mohammadrayati <52103775+mohammadrayati@users.noreply.github.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.6"
+numpy = "1.19.0"
+pandas = "0.24.2"
+rpy2 = "3.3.3"
+mysql-connector = "^2.2.9"
+sklearn = "^0.0"
+quantecon = "0.4"
+matplotlib = "3.3.3"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
