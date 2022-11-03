@@ -1,9 +1,12 @@
 """@author: MYI, #Python version: 3.9.6 [64 bit]"""
-from gurobipy import *
-from src.auxiliary import *
+from auxiliary import find_nearest, find_n, figuring
+from gurobipy import Model, GRB
+from scipy.stats import norm
 import coloredlogs
 import itertools
 import logging
+import numpy as np
+import pandas as pd
 
 
 # Global variables
@@ -14,7 +17,7 @@ coloredlogs.install(level="INFO")
 
 # Functions
 # ----------------------------------------------------------------------------------------------------------------------
-def rt_following_digriflex(grid_inp: list, p_net: float, q_net: float, forecast_pv: float, forecast_dm: list,
+def rt_following_digriflex(grid_inp: dict, p_net: float, q_net: float, forecast_pv: float, forecast_dm: dict,
                            soc: float):
     """
     @description: This function is used to calculate the reactive power following the DiGriFlex model.
@@ -40,7 +43,7 @@ def rt_following_digriflex(grid_inp: list, p_net: float, q_net: float, forecast_
                              (grid_inp["storage_elements"][0]["SOC_min_kWh"]
                               - soc * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
     battery_q_cap = np.sqrt(grid_inp["storage_elements"][0]["S_max_kVA"] ** 2 -
-                            max([battery_P_cap_pos, - battery_P_cap_neg]) ** 2)
+                            max([battery_p_cap_pos, - battery_p_cap_neg]) ** 2)
     if forecast_p - p_net <= battery_p_cap_pos:
         battery_p_sp = max([- forecast_p + p_net, battery_p_cap_neg])
         abb_p_sp = 100
@@ -62,7 +65,7 @@ def rt_following_digriflex(grid_inp: list, p_net: float, q_net: float, forecast_
     return abb_p_sp, round(abb_c_sp, 3), round(battery_p_sp, 3), round(battery_q_sp, 3), abb_p_exp, - f_p, - f_q
 
 
-def rt_opt_digriflex(grid_inp: list, v_mag: float, p_net: float, q_net: float, forecast_pv: float, forecast_dm: list,
+def rt_opt_digriflex(grid_inp: dict, v_mag: float, p_net: float, q_net: float, forecast_pv: float, forecast_dm: dict,
                      soc_battery: float, soc_desired: float, prices_vec: list):
     """
     @description: this function is used to calculate the reactive power following the digriflex model.
@@ -81,7 +84,7 @@ def rt_opt_digriflex(grid_inp: list, v_mag: float, p_net: float, q_net: float, f
     """
     p_net, q_net = - p_net, - q_net
     rt_meas_inp = {}
-    meas_inp = {}
+    meas_inp = dict()
     rt_meas_inp["delta"] = 0.001
     rt_meas_inp["Loss_Coeff"] = prices_vec[0]
     rt_meas_inp["ST_Coeff"] = prices_vec[1]
@@ -106,8 +109,8 @@ def rt_opt_digriflex(grid_inp: list, v_mag: float, p_net: float, q_net: float, f
     rt_meas_inp["ConPoint_P_DA_RS_neg"] = {0: 0}
     rt_meas_inp["ConPoint_Q_DA_RS_pos"] = {0: 0}
     rt_meas_inp["ConPoint_Q_DA_RS_neg"] = {0: 0}
-    da_result = {}
-    da_result, _ = rt_optimization(rt_meas_inp, meas_inp, grid_inp, da_result)
+    da_result: dict = {}
+    da_result, rt_res = rt_optimization(rt_meas_inp, meas_inp, grid_inp, da_result)
     if not da_result["time_out"]:
         abb_p_sp = da_result["Solution_PV_P"]
         abb_q_sp = da_result["Solution_PV_Q"]
@@ -137,10 +140,11 @@ def rt_opt_digriflex(grid_inp: list, v_mag: float, p_net: float, q_net: float, f
         abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q = \
             rt_following_digriflex(grid_inp=grid_inp, p_net=p_net, q_net=q_net, forecast_pv=forecast_pv,
                                    forecast_dm=forecast_dm, soc=soc_battery)
-    return abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q
+        rt_res = 1
+    return abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q, rt_res
 
 
-def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result: list):
+def rt_optimization(rt_meas_inp: dict, meas_inp: dict, grid_inp: dict, da_result: dict):
     """
     @description: the function to run the optimization
     @param rt_meas_inp: list, the list of the real time measurements
@@ -174,8 +178,8 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
         line_smax[find_n(nn["bus_j"], grid_inp["buses"]),
                   find_n(nn["bus_k"], grid_inp["buses"])] = nn["Cap"]
         line_vbase[find_n(nn["bus_j"], grid_inp["buses"]),
-                   find_n(nn["bus_k"], grid_inp["buses"])] = grid_inp["buses"][find_n(nn["bus_k"],
-                                                                                            grid_inp["buses"])]["U_kV"]
+                   find_n(nn["bus_k"], grid_inp["buses"])] = \
+            grid_inp["buses"][find_n(nn["bus_k"], grid_inp["buses"])]["U_kV"]
         line_zre[find_n(nn["bus_j"], grid_inp["buses"]),
                  find_n(nn["bus_k"], grid_inp["buses"])] = nn["R_cc_pu"] * grid_inp["Zbase"]
         line_zim[find_n(nn["bus_j"], grid_inp["buses"]),
@@ -186,8 +190,8 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
         line_smax[find_n(nn["bus_j"], grid_inp["buses"]),
                   find_n(nn["bus_k"], grid_inp["buses"])] = nn["Cap"]
         line_vbase[find_n(nn["bus_j"], grid_inp["buses"]),
-                   find_n(nn["bus_k"], grid_inp["buses"])] = grid_inp["buses"][find_n(nn["bus_k"],
-                                                                                            grid_inp["buses"])]["U_kV"]
+                   find_n(nn["bus_k"], grid_inp["buses"])] = \
+            grid_inp["buses"][find_n(nn["bus_k"], grid_inp["buses"])]["U_kV"]
         line_zre[find_n(nn["bus_j"], grid_inp["buses"]),
                  find_n(nn["bus_k"], grid_inp["buses"])] = grid_inp["line_codes"][nn["code"]]["R1"] * nn["m"] / 1000
         line_zim[find_n(nn["bus_j"], grid_inp["buses"]),
@@ -221,7 +225,7 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
         pv_x[nn["index"]] = nn["X_PV_pu"]
         pv_cos[nn["index"]] = nn["cos_PV"]
         pv_forecast[nn["index"]] = rt_meas_inp["P_PV"] * nn["cap_kVA_perPhase"]
-    log.info("- PV data is generated for optimization.")
+    log.info("PV data is generated for optimization.")
     st_set = range(np.size(grid_inp["storage_elements"], 0))
     st_inc_mat = np.zeros((np.size(grid_inp["storage_elements"], 0), grid_inp["Nbus"]))
     st_s_max = np.zeros(np.size(grid_inp["storage_elements"], 0))
@@ -244,7 +248,7 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
         st_eff_lc[nn["index"]] = nn["Eff_LC"]
         st_soc_t_1[nn["index"]] = rt_meas_inp["ST_SOC_t_1"][s] * 64 / 100
         st_soc_des[nn["index"]] = rt_meas_inp["ST_SOC_des"][s] * 64 / 100
-    log.info("- Storage data is generated for optimization.")
+    log.info("Storage data is generated for optimization.")
     conpoint_set = range(np.size(grid_inp["grid_formers"], 0))
     conpoint_inc_mat = np.zeros((np.size(grid_inp["grid_formers"], 0), grid_inp["Nbus"]))
     conpoint_fac_p_pos = np.zeros((np.size(grid_inp["grid_formers"], 0)))
@@ -271,8 +275,8 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
         conpoint_p_da_rs_neg[nn["index"]] = rt_meas_inp["ConPoint_P_DA_RS_neg"][nn["index"]]
         conpoint_q_da_rs_pos[nn["index"]] = rt_meas_inp["ConPoint_Q_DA_RS_pos"][nn["index"]]
         conpoint_q_da_rs_neg[nn["index"]] = rt_meas_inp["ConPoint_Q_DA_RS_neg"][nn["index"]]
-    log.info("- Connection point data is generated for optimization.")
-    prob_rt = Model("PROB_RT")
+    log.info("Connection point data is generated for optimization.")
+    prob_rt = Model()
     line_p_t = prob_rt.addVars(line_set, lb=-big_m, ub=big_m)
     line_q_t = prob_rt.addVars(line_set, lb=-big_m, ub=big_m)
     line_p_b = prob_rt.addVars(line_set, lb=-big_m, ub=big_m)
@@ -496,6 +500,7 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
                           == conpoint_vmag[f] * conpoint_vmag[f])
     prob_rt.setObjective(1000 * deltat * obj_rt_market.sum(), GRB.MAXIMIZE)
     prob_rt.Params.BarHomogeneous = 1
+    prob_rt.Params.OutputFlag = 0
     prob_rt.optimize()
     d_res = 0
     try:
@@ -507,6 +512,12 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
         solution_st_q = prob_rt.getAttr('x', st_q)
         solution_st_soc = prob_rt.getAttr('x', st_soc)
         solution_st_soc0 = [solution_st_soc[s] for s in st_set]
+        solution_con_p_dev_pos = prob_rt.getAttr('x', conpoint_p_dev_pos)
+        solution_con_p_dev_neg = prob_rt.getAttr('x', conpoint_p_dev_neg)
+        solution_con_q_dev_neg = prob_rt.getAttr('x', conpoint_q_dev_neg)
+        solution_con_q_dev_pos = prob_rt.getAttr('x', conpoint_q_dev_pos)
+        da_result["Solution_dev"] = solution_con_p_dev_neg.sum() > 0.01 + solution_con_q_dev_neg.sum() > 0.01 + \
+            solution_con_p_dev_pos.sum() > 0.01 + solution_con_q_dev_pos.sum() > 0.01
         da_result["Solution_ST_SOC_RT"] = solution_st_soc0
         da_result["Solution_PV_P"] = solution_pv_p
         da_result["Solution_PV_Q"] = solution_pv_q
@@ -515,7 +526,8 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
         da_result["Solution_con_P"] = solution_con_p
         da_result["Solution_con_Q"] = solution_con_q
         da_result["time_out"] = False
-    except:
+        log.info("Real-time problem is solved.")
+    except ExceptionGroup:
         log.warning("Gurobi optimization time out")
         da_result["Solution_ST_SOC_RT"] = st_soc_t_1
         da_result["time_out"] = True
@@ -523,7 +535,7 @@ def rt_optimization(rt_meas_inp: list, meas_inp: list, grid_inp: list, da_result
     return da_result, d_res
 
 
-def da_opt_digriflex(grid_inp: list, v_mag: list, forecast_pv: list, forecast_p_dm: list, forecast_q_dm: list,
+def da_opt_digriflex(grid_inp: dict, v_mag: list, forecast_pv: list, forecast_p_dm: list, forecast_q_dm: list,
                      forecast_soc: list, prices_vec: list, robust_par: float):
     """
     @description: this function is used to solve the dynamic optimization problem using gurobi
@@ -638,8 +650,8 @@ def da_optimization_robust(case_name: str, case_inp: dict, grid_inp: dict, meas_
         line_smax[find_n(n["bus_j"], grid_inp["buses"]),
                   find_n(n["bus_k"], grid_inp["buses"])] = n["Cap"]
         line_vbase[find_n(n["bus_j"], grid_inp["buses"]),
-                   find_n(n["bus_k"], grid_inp["buses"])] = grid_inp["buses"][find_n(n["bus_k"],
-                                                                                           grid_inp["buses"])]["U_kV"]
+                   find_n(n["bus_k"], grid_inp["buses"])] = \
+            grid_inp["buses"][find_n(n["bus_k"], grid_inp["buses"])]["U_kV"]
         line_zre[find_n(n["bus_j"], grid_inp["buses"]),
                  find_n(n["bus_k"], grid_inp["buses"])] = n["R_cc_pu"] * grid_inp["Zbase"]
         line_zim[find_n(n["bus_j"], grid_inp["buses"]),
@@ -756,12 +768,16 @@ def da_optimization_robust(case_name: str, case_inp: dict, grid_inp: dict, meas_
             zeta_n_conpoint_fac_q[n["index"]][t] = 1
             zeta_p_conpoint_vmag[n["index"]][t] = fore_inp["Vmag_zeta+"][t]
             zeta_n_conpoint_vmag[n["index"]][t] = fore_inp["Vmag_zeta-"][t]
-            sigma_p_conpoint_fac_p[n["index"]][t] = zeta_p_conpoint_fac_p[n["index"]][t] / norm.ppf(fore_inp["confidence"])
-            sigma_n_conpoint_fac_p[n["index"]][t] = zeta_n_conpoint_fac_p[n["index"]][t] / norm.ppf(fore_inp["confidence"])
-            sigma_p_conpoint_fac_q[n["index"]][t] = zeta_p_conpoint_fac_q[n["index"]][t] / norm.ppf(fore_inp["confidence"])
-            sigma_n_conpoint_fac_q[n["index"]][t] = zeta_n_conpoint_fac_q[n["index"]][t] / norm.ppf(fore_inp["confidence"])
+            sigma_p_conpoint_fac_p[n["index"]][t] = \
+                zeta_p_conpoint_fac_p[n["index"]][t] / norm.ppf(fore_inp["confidence"])
+            sigma_n_conpoint_fac_p[n["index"]][t] = \
+                zeta_n_conpoint_fac_p[n["index"]][t] / norm.ppf(fore_inp["confidence"])
+            sigma_p_conpoint_fac_q[n["index"]][t] = \
+                zeta_p_conpoint_fac_q[n["index"]][t] / norm.ppf(fore_inp["confidence"])
+            sigma_n_conpoint_fac_q[n["index"]][t] = \
+                zeta_n_conpoint_fac_q[n["index"]][t] / norm.ppf(fore_inp["confidence"])
     log.info("Connection point data is generated for optimization.")
-    prob_da = Model("PROB_DA")
+    prob_da = Model()
     line_p_t = prob_da.addVars(line_set, time_set, lb=-big_m, ub=big_m)
     line_q_t = prob_da.addVars(line_set, time_set, lb=-big_m, ub=big_m)
     line_p_b = prob_da.addVars(line_set, time_set, lb=-big_m, ub=big_m)
@@ -1235,8 +1251,8 @@ def da_optimization_robust(case_name: str, case_inp: dict, grid_inp: dict, meas_
             prob_da.addConstr(min_line_p_t[n1, n2, t] * min_line_p_t[n1, n2, t]
                               + min_line_q_t[n1, n2, t] * min_line_q_t[n1, n2, t]
                               <= min_vmag_sq[n1, t] * (line_smax[n1, n2] ** 2) * 9 / (1000 * line_vbase[n1, n2] ** 2))
-    prob_da.setObjective(1000 * deltat * obj_da_market.sum(), GRB.MAXIMIZE)
-    prob_da.Params.BarHomogeneous = 1
+    prob_da.setObjective(1 * deltat * obj_da_market.sum(), GRB.MAXIMIZE)
+    prob_da.Params.OutputFlag = 0
     prob_da.optimize()
     da_result = {}
     try:
@@ -1262,7 +1278,7 @@ def da_optimization_robust(case_name: str, case_inp: dict, grid_inp: dict, meas_
         da_rpp_neg = [da_rp_neg[0, t] for t in time_set]
         da_rqq_pos = [da_rq_pos[0, t] for t in time_set]
         da_rqq_neg = [da_rq_neg[0, t] for t in time_set]
-        meas = {}
+        meas = dict()
         meas["DA_PP"] = -np.array(da_pp)
         meas["DA_QQ"] = -np.array(da_qq)
         meas["DA_P+"] = -np.array(da_pp) + np.array(da_rpp_pos)
@@ -1293,7 +1309,8 @@ def da_optimization_robust(case_name: str, case_inp: dict, grid_inp: dict, meas_
         output_df.loc['DA_RQ_pos_avg', case_name] = sum(da_rqq_pos) / len(da_rqq_pos)
         output_df.loc['DA_RQ_neg_avg', case_name] = sum(da_rqq_neg) / len(da_rqq_neg)
         da_result["time_out"] = False
-    except:
+        log.info("Dayahead problem is solved with final objective " + str(obj.getValue()) + ".")
+    except ExceptionGroup:
         da_result["time_out"] = True
     return da_result, output_df
 
@@ -1380,9 +1397,8 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
                                                - (fore_inp["Dem_P_zeta+"][nnn][t] + fore_inp["Dem_P_zeta-"][nnn][t]) \
                                                * np.random.randint(0, 2)
                     dm_q[nn["index"]][t][om] = fore_inp["Dem_Q"][nnn][t] + fore_inp["Dem_Q_zeta+"][nnn][t] \
-                                               - (fore_inp["Dem_Q_zeta+"][nnn][t] + fore_inp["Dem_Q_zeta-"][nnn][t]) \
-                                               * np.random.randint(0, 2)
-    log.info("- Demand data is generated for optimization.")
+                        - (fore_inp["Dem_Q_zeta+"][nnn][t] + fore_inp["Dem_Q_zeta-"][nnn][t]) * np.random.randint(0, 2)
+    log.info("Demand data is generated for optimization.")
     pv_set = range(np.size(grid_inp["PV_elements"], 0))
     pv_inc_mat = np.zeros((np.size(grid_inp["PV_elements"], 0), grid_inp["Nbus"]))
     pv_cap = np.zeros((np.size(grid_inp["PV_elements"], 0)))
@@ -1477,13 +1493,12 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
                 elif om > 2:
                     conpoint_fac_p_pos[nn["index"]][t][om] = np.random.randint(0, 2)
                     conpoint_fac_p_neg[nn["index"]][t][om] = 1 - conpoint_fac_p_pos[nn["index"]][t][om]
-                    ConPoint_fac_q_pos[nn["index"]][t][om] = np.random.randint(0, 2)
+                    conpoint_fac_q_pos[nn["index"]][t][om] = np.random.randint(0, 2)
                     conpoint_fac_q_neg[nn["index"]][t][om] = 1 - conpoint_fac_q_pos[nn["index"]][t][om]
                     conpoint_vmag[nn["index"]][t][om] = 1 + fore_inp["Vmag_zeta+"][t] \
-                                                        - (fore_inp["Vmag_zeta-"][t] +
-                                                           fore_inp["Vmag_zeta+"][t]) * np.random.randint(0, 2)
-    log.info("- Connection point data is generated for optimization.")
-    prob_da = Model("PROB_DA")
+                        - (fore_inp["Vmag_zeta-"][t] + fore_inp["Vmag_zeta+"][t]) * np.random.randint(0, 2)
+    log.info("Connection point data is generated for optimization.")
+    prob_da = Model()
     line_p_t = prob_da.addVars(line_set, time_set, scen_omega_set, lb=-big_m, ub=big_m)
     line_q_t = prob_da.addVars(line_set, time_set, scen_omega_set, lb=-big_m, ub=big_m)
     line_p_b = prob_da.addVars(line_set, time_set, scen_omega_set, lb=-big_m, ub=big_m)
@@ -1748,10 +1763,10 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
             prob_da.addConstr(
                 obj_loss[n1, n2, t, om] >= sum(line_zre[n1, n2] * line_f[n1, n2, t, om] for n1, n2 in line_set))
     if loss_consideration == 0:
-        prob_da.setObjective(1000 * deltat * obj_da_market.sum(), GRB.MAXIMIZE)
+        prob_da.setObjective(1 * deltat * obj_da_market.sum(), GRB.MAXIMIZE)
     else:
         prob_da.setObjective(obj_loss.sum(), GRB.MINIMIZE)
-    prob_da.Params.BarHomogeneous = 1
+    prob_da.Params.OutputFlag = 0
     prob_da.optimize()
     da_result = {}
     try:
@@ -1777,7 +1792,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
         da_rpp_neg = [da_rp_neg[0, t] for t in time_set]
         da_rqq_pos = [da_rq_pos[0, t] for t in time_set]
         da_rqq_neg = [da_rq_neg[0, t] for t in time_set]
-        meas = {}
+        meas = dict()
         meas["DA_PP"] = -np.array(da_pp)
         meas["DA_QQ"] = -np.array(da_qq)
         meas["DA_P+"] = -np.array(da_pp) + np.array(da_rpp_pos)
@@ -1791,7 +1806,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
         da_result["Solution_ST_Q"] = solution_st_qq
         da_result["Solution_ST_SOC"] = solution_st_soc1
         da_result["DA_P"] = da_pp
-        da_result["DA_Q"] = da_qQ
+        da_result["DA_Q"] = da_qq
         da_result["DA_RP_pos"] = da_rpp_pos
         da_result["DA_RP_neg"] = da_rpp_neg
         da_result["DA_RQ_pos"] = da_rqq_pos
@@ -1807,6 +1822,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
         output_df.loc['DA_RQ_pos_avg', case_name] = sum(da_rqq_pos) / len(da_rqq_pos)
         output_df.loc['DA_RQ_neg_avg', case_name] = sum(da_rqq_neg) / len(da_rqq_neg)
         da_result["time_out"] = False
-    except:
+        log.info("Dayahead problem is solved with final objective " + str(obj.getValue()) + ".")
+    except ExceptionGroup:
         da_result["time_out"] = True
     return da_result, output_df

@@ -45,6 +45,7 @@ Thumbs.db
 # Generated database
 *.sqlite
 *.html
+*.pickle
 outputs/
 
 # Virtual environments and caches

@@ -1,5 +1,4 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
-from datetime import datetime
 from random import gauss
 from scipy.stats import norm
 import matplotlib.pyplot as plt
@@ -10,7 +9,8 @@ import pandas as pd
 
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
-os.environ['R_HOME'] = r'C:/Program Files/R/R-4.0.5'
+os.environ['R_HOME'] = r'C:/Program Files/R/R-4.2.2'
+plt.set_loglevel('WARNING')
 
 
 # Functions
@@ -67,8 +67,9 @@ def reine_parameters():
     parameters['Ond_Cap'] = [5, 8.5, 9]
     parameters['Ond_V_grid_pu'] = [1, 1, 1]
     parameters['Ond_V_conv_pu'] = [545 / 400, 620 / 400, 575 / 400]
-    parameters['Ond_X_PV_pu'] = [3 * parameters['Ond_V_grid_pu'][x] * (parameters['Ond_V_conv_pu'][x] - parameters['Ond_V_grid_pu'][x]) 
-                                   * parameters['Sbase'] / (1000 * parameters['Ond_Cap'][x]) for x in range(3)]
+    parameters['Ond_X_PV_pu'] = \
+        [3 * parameters['Ond_V_grid_pu'][x] * (parameters['Ond_V_conv_pu'][x] - parameters['Ond_V_grid_pu'][x])
+         * parameters['Sbase'] / (1000 * parameters['Ond_Cap'][x]) for x in range(3)]
     parameters['Ond_cos_PV'] = [0.89, 0.89, 0.89]
     # Con = [Battery]
     parameters['Con_SOC_min_kWh'] = [64*10/100]
@@ -102,7 +103,8 @@ def grid_topology_sim(case_name: str, vec_inp: list):
                   "shunts": [{"bus": "1", "R": 0.0001, "X": 0.0001, "bus_nodes": [4, 0]},],
                   "line_codes": {"Line2": {"R1": 0.263, "X1": 0.078, "B_1_mu": 0 * 0.73 * (2 * 3.14 * 50)}}
                 }
-          data["PV_elements"] = [{"index": 0, "bus": "2", "cap_kVA_perPhase": 200 / 3, "V_grid_pu": 1, "V_conv_pu": 1, "X_PV_pu": 1}]
+          data["PV_elements"] = [{"index": 0, "bus": "2", "cap_kVA_perPhase": 200 / 3, "V_grid_pu": 1, "V_conv_pu": 1,
+          "X_PV_pu": 1}]
           data["load_elements"] = [{"index": 0, "bus": "1"}]
           data["storage_elements"] = [{"index": 0, "bus": "2", "SOC_min_kWh": 0, "SOC_max_kWh": 40, "S_max_kVA": 20,
                                       "P_max_kW": 10, "Eff_LV": 1, "Eff_D": 1, "Eff_C": 1, "Eff_LC": 1}]
@@ -196,7 +198,7 @@ def grid_topology_sim(case_name: str, vec_inp: list):
                 }
         }
     elif case_name == "6BusesLaChappelle":
-        data = {
+        data: dict = {
             "lines": [
                 {"bus_j": "1", "bus_k": "4", "code": "Line4", "m": 219, "Cap": 470},
                 {"bus_j": "1", "bus_k": "2", "code": "Line2", "m": 145, "Cap": 500},
@@ -327,7 +329,7 @@ def grid_topology_sim(case_name: str, vec_inp: list):
         # 73k = [14, 15, 16, 17, 18, 19, 20]
         s_74k = switches["S_74K"]
         # 74k = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-        s_l9 = switches["S_L9"]
+        s_l9: list = switches["S_L9"]
         # s_l9 = [1-5, 6-9]
         charge = switches["Charge"]
         # ch_node = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -358,33 +360,33 @@ def grid_topology_sim(case_name: str, vec_inp: list):
         nodes = list(set().union(nodes))
         m_big = 1e5
         y_big = 300 / complex(min(r_reine_u) + min(r_reine_v) + min(r_reine_w) + 3 * r_cable,
-                             (min(l_reine_u) + min(l_reine_v) + min(l_reine_w)) * l2x + 3 * x_cable)
+                              (min(l_reine_u) + min(l_reine_v) + min(l_reine_w)) * l2x + 3 * x_cable)
         y_bus_1_2 = 3 / complex(r_reine_u[0] + r_reine_v[0] + r_reine_w[0] + 3 * r_cable,
-                               (l_reine_u[0] + l_reine_v[0] + l_reine_w[0]) * l2x + 3 * x_cable)
+                                (l_reine_u[0] + l_reine_v[0] + l_reine_w[0]) * l2x + 3 * x_cable)
         y_bus_1_6 = 3 / complex(r_reine_u[4] + r_reine_v[4] + r_reine_w[4] + 3 * r_cable,
-                               (l_reine_u[4] + l_reine_v[4] + l_reine_w[4]) * l2x + 3 * x_cable)
+                                (l_reine_u[4] + l_reine_v[4] + l_reine_w[4]) * l2x + 3 * x_cable)
         y_bus_1_10 = y_bus_1_11 = y_bus_1_12 = y_big
         y_bus_2_3 = 3 / complex(r_reine_u[1] + r_reine_v[1] + r_reine_w[1] + 3 * r_cable,
-                               (l_reine_u[1] + l_reine_v[1] + l_reine_w[1]) * l2x + 3 * x_cable)
+                                (l_reine_u[1] + l_reine_v[1] + l_reine_w[1]) * l2x + 3 * x_cable)
         y_bus_2_6 = y_big
         y_bus_3_4 = 3 / complex(r_reine_u[2] + r_reine_v[2] + r_reine_w[2] + 3 * r_cable,
-                               (l_reine_u[2] + l_reine_v[2] + l_reine_w[2]) * l2x + 3 * x_cable)
+                                (l_reine_u[2] + l_reine_v[2] + l_reine_w[2]) * l2x + 3 * x_cable)
         y_bus_3_10 = y_big
         y_bus_4_5 = 3 / complex(r_reine_u[3] + r_reine_v[3] + r_reine_w[3] + 3 * r_cable,
-                               (l_reine_u[3] + l_reine_v[3] + l_reine_w[3]) * l2x + 3 * x_cable)
+                                (l_reine_u[3] + l_reine_v[3] + l_reine_w[3]) * l2x + 3 * x_cable)
         y_bus_4_11 = y_big
         y_bus_5_12 = y_big
         y_bus_6_7 = 3 / complex(r_reine_u[5] + r_reine_v[5] + r_reine_w[5] + 3 * r_cable,
-                               (l_reine_u[5] + l_reine_v[5] + l_reine_w[5]) * l2x + 3 * x_cable)
+                                (l_reine_u[5] + l_reine_v[5] + l_reine_w[5]) * l2x + 3 * x_cable)
         y_bus_7_8 = 3 / complex(r_reine_u[6] + r_reine_v[6] + r_reine_w[6] + 3 * r_cable,
-                               (l_reine_u[6] + l_reine_v[6] + l_reine_w[6]) * l2x + 3 * x_cable)
+                                (l_reine_u[6] + l_reine_v[6] + l_reine_w[6]) * l2x + 3 * x_cable)
         y_bus_7_10 = y_big
         y_bus_8_9 = 3 / complex(r_reine_u[7] + r_reine_v[7] + r_reine_w[7] + 3 * r_cable,
-                               (l_reine_u[7] + l_reine_v[7] + l_reine_w[7]) * l2x + 3 * x_cable)
+                                (l_reine_u[7] + l_reine_v[7] + l_reine_w[7]) * l2x + 3 * x_cable)
         y_bus_8_11 = y_big
         y_bus_9_12 = y_big
         y_bus_l9 = 3 / complex(r_reine_u[8] + r_reine_v[8] + r_reine_w[8] + 3 * r_cable,
-                              (l_reine_u[8] + l_reine_v[8] + l_reine_w[8]) * l2x + 3 * x_cable)
+                               (l_reine_u[8] + l_reine_v[8] + l_reine_w[8]) * l2x + 3 * x_cable)
         y_bus_1_2 = y_bus_1_2 * s_74k[7]
         y_bus_1_6 = y_bus_1_6 * s_74k[11]
         y_bus_1_10 = y_bus_1_10 * s_73k[2]
@@ -403,30 +405,31 @@ def grid_topology_sim(case_name: str, vec_inp: list):
         y_bus_8_9 = y_bus_8_9 * s_74k[14]
         y_bus_8_11 = y_bus_8_11 * s_74k[4]
         y_bus_9_12 = y_bus_9_12 * s_74k[5]
-        y_bus = [[y_bus_1_2 + y_bus_1_6 + y_bus_1_10 + y_bus_1_11 + y_bus_1_12, -y_bus_1_2, 0, 0, 0, -y_bus_1_6,
-                 0, 0, 0, -y_bus_1_10, -y_bus_1_11, -y_bus_1_12],
-                [-y_bus_1_2, y_bus_1_2 + y_bus_2_3 + y_bus_2_6, -y_bus_2_3, 0, 0, -y_bus_2_6,
-                 0, 0, 0, 0, 0, 0],
-                [0, -y_bus_2_3, y_bus_2_3 + y_bus_3_4 + y_bus_3_10, -y_bus_3_4, 0, 0,
-                 0, 0, 0, -y_bus_3_10, 0, 0],
-                [0, 0, -y_bus_3_4, y_bus_3_4 + y_bus_4_5 + y_bus_4_11, -y_bus_4_5, 0,
-                 0, 0, 0, 0, -y_bus_4_11, 0],
-                [0, 0, 0, -y_bus_4_5, y_bus_4_5 + y_bus_5_12, 0,
-                 0, 0, 0, 0, 0, -y_bus_5_12],
-                [-y_bus_1_6, -y_bus_2_6, 0, 0, 0, y_bus_1_6 + y_bus_2_6 + y_bus_6_7,
-                 -y_bus_6_7, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, -y_bus_6_7,
-                 y_bus_6_7 + y_bus_7_8 + y_bus_7_10, -y_bus_7_8, 0, -y_bus_7_10, 0, 0],
-                [0, 0, 0, 0, 0, 0,
-                 -y_bus_7_8, y_bus_7_8 + y_bus_8_9 + y_bus_8_11, -y_bus_8_9, 0, -y_bus_8_11, 0],
-                [0, 0, 0, 0, 0, 0,
-                 0, -y_bus_8_9, y_bus_8_9 + y_bus_9_12, 0, 0, -y_bus_9_12],
-                [-y_bus_1_10, 0, -y_bus_3_10, 0, 0, 0,
-                 -y_bus_7_10, 0, 0, (y_bus_1_10 + y_bus_3_10 + y_bus_7_10), 0, 0],
-                [-y_bus_1_11, 0, 0, -y_bus_4_11, 0, 0,
-                 0, -y_bus_8_11, 0, 0, (y_bus_1_11 + y_bus_4_11 + y_bus_8_11), 0],
-                [-y_bus_1_12, 0, 0, 0, -y_bus_5_12, 0,
-                 0, 0, -y_bus_9_12, 0, 0, (y_bus_1_12 + y_bus_5_12 + y_bus_9_12)]]
+        y_bus: list = \
+            [[y_bus_1_2 + y_bus_1_6 + y_bus_1_10 + y_bus_1_11 + y_bus_1_12, -y_bus_1_2, 0, 0, 0, -y_bus_1_6,
+             0, 0, 0, -y_bus_1_10, -y_bus_1_11, -y_bus_1_12],
+             [-y_bus_1_2, y_bus_1_2 + y_bus_2_3 + y_bus_2_6, -y_bus_2_3, 0, 0, -y_bus_2_6,
+              0, 0, 0, 0, 0, 0],
+             [0, -y_bus_2_3, y_bus_2_3 + y_bus_3_4 + y_bus_3_10, -y_bus_3_4, 0, 0,
+              0, 0, 0, -y_bus_3_10, 0, 0],
+             [0, 0, -y_bus_3_4, y_bus_3_4 + y_bus_4_5 + y_bus_4_11, -y_bus_4_5, 0,
+              0, 0, 0, 0, -y_bus_4_11, 0],
+             [0, 0, 0, -y_bus_4_5, y_bus_4_5 + y_bus_5_12, 0,
+              0, 0, 0, 0, 0, -y_bus_5_12],
+             [-y_bus_1_6, -y_bus_2_6, 0, 0, 0, y_bus_1_6 + y_bus_2_6 + y_bus_6_7,
+              -y_bus_6_7, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, -y_bus_6_7,
+              y_bus_6_7 + y_bus_7_8 + y_bus_7_10, -y_bus_7_8, 0, -y_bus_7_10, 0, 0],
+             [0, 0, 0, 0, 0, 0,
+              -y_bus_7_8, y_bus_7_8 + y_bus_8_9 + y_bus_8_11, -y_bus_8_9, 0, -y_bus_8_11, 0],
+             [0, 0, 0, 0, 0, 0,
+              0, -y_bus_8_9, y_bus_8_9 + y_bus_9_12, 0, 0, -y_bus_9_12],
+             [-y_bus_1_10, 0, -y_bus_3_10, 0, 0, 0,
+              -y_bus_7_10, 0, 0, (y_bus_1_10 + y_bus_3_10 + y_bus_7_10), 0, 0],
+             [-y_bus_1_11, 0, 0, -y_bus_4_11, 0, 0,
+              0, -y_bus_8_11, 0, 0, (y_bus_1_11 + y_bus_4_11 + y_bus_8_11), 0],
+             [-y_bus_1_12, 0, 0, 0, -y_bus_5_12, 0,
+              0, 0, -y_bus_9_12, 0, 0, (y_bus_1_12 + y_bus_5_12 + y_bus_9_12)]]
         if s_l9[0] > 0 and s_l9[1] > 0:
             y_bus[s_l9[0] - 1][s_l9[1] - 1] = y_bus[s_l9[0] - 1][s_l9[1] - 1] - y_bus_l9
             y_bus[s_l9[1] - 1][s_l9[0] - 1] = y_bus[s_l9[1] - 1][s_l9[0] - 1] - y_bus_l9
@@ -445,14 +448,15 @@ def grid_topology_sim(case_name: str, vec_inp: list):
             a_loc.append(ordered_nodes.index(ele - 1))
         d_loc = list(set(range(len(ordered_nodes))).difference(set(a_loc)))
         y_bus_arr = np.array(y_bus, dtype=object)
-        a, b, c, d = y_bus_arr[np.ix_(a_loc, a_loc)], y_bus_arr[np.ix_(a_loc, d_loc)], y_bus_arr[np.ix_(d_loc, d_loc)], \
-                     y_bus_arr[np.ix_(d_loc, a_loc)]
+        a, b, c, d = y_bus_arr[np.ix_(a_loc, a_loc)], y_bus_arr[np.ix_(a_loc, d_loc)], y_bus_arr[np.ix_(d_loc, d_loc)],\
+            y_bus_arr[np.ix_(d_loc, a_loc)]
         y_bus_red = a - np.matmul(np.matmul(b, np.array(np.linalg.inv(c.tolist()))), d)
         data["buses"] = [{"bus": "0", "pos_x": 0, "pos_y": 0, "units": "m", "U_kV": 20, "Vmin": 0.9, "Vmax": 1.1}]
         data["shunts"] = []
         data["grid_feeders"] = []
         for n in nodes:
-            data["buses"].append({"bus": str(n), "pos_x": 0, "pos_y": 0, "units": "m", "U_kV": 0.4, "Vmin": 0.9, "Vmax": 1.1})
+            data["buses"]\
+                .append({"bus": str(n), "pos_x": 0, "pos_y": 0, "units": "m", "U_kV": 0.4, "Vmin": 0.9, "Vmax": 1.1})
             data["shunts"].append({"bus": str(n), "R": 0.0001, "X": 0.0001, "bus_nodes": [4, 0]})
             data["grid_feeders"].append({"bus": str(n), "bus_nodes": [1, 2, 3, 4], "kW": 0, "kvar": 0})
         data["lines"] = []
@@ -467,8 +471,7 @@ def grid_topology_sim(case_name: str, vec_inp: list):
                             ii = j
                             jj = i
                     data["lines"].append(
-                        {"bus_j": str(ii), "bus_k": str(jj), "code": str(ii) + ',' + str(jj), "m": 1000,
-                         "Cap": cap})
+                        {"bus_j": str(ii), "bus_k": str(jj), "code": str(ii) + ',' + str(jj), "m": 1000,  "Cap": cap})
                     data["line_codes"][str(ii) + ',' + str(jj)] = {
                         "R1": -(1 / (y_bus_red[nodes.index(i)][nodes.index(j)])).real,
                         "X1": -(1 / (y_bus_red[nodes.index(i)][nodes.index(j)])).imag,
@@ -495,7 +498,7 @@ def grid_topology_sim(case_name: str, vec_inp: list):
                                             "cap_kVA_perPhase": ond_cap[index] / 3, "V_grid_pu": ond_v_grid_pu[index],
                                             "V_conv_pu": ond_v_conv_pu[index], "X_PV_pu": ond_x_pv_pu[index],
                                             "cos_PV": ond_cos_pv[index]})
-        data["load_elements"] = []
+        data["load_elements"]: list = []
         j = -1
         for ch in charge:
             if ch != 0:
@@ -523,7 +526,8 @@ def interface_meas(vec_inp: list):
     @param vec_inp: vector of measurements ordered by Douglas in "07/10/2020 14:06"
     (See "\data\Ordre_informations_controle_2020.10.07.xlsx")
     @return: dictionary of measurements
-    - Switches = {"S_73K":[]*8, "S_74_K": []*16, "S_L9": []*1, "Charge": []*14, "Ond": []*16, "Con"@*: []*1}   @*Con-->Battery
+    - Switches = {"S_73K":[]*8, "S_74_K": []*16, "S_L9": []*1, "Charge": []*14, "Ond": []*16, "Con"@*: []*1}
+    @*Con-->Battery
     - Ligne_U = []*9 @* nine nodes
     - Ligne_I = []*9 @* nine nodes
     - Charge_I = []*14 @* 14 loads [[10kW]*8, SOPS_1, SOPS_2, GreenMotion, Cinergia, 25kW, MIRI]
@@ -557,7 +561,7 @@ def interface_meas(vec_inp: list):
                 switches["Charge"][ch - 4] = int(vec_inp[416 + index + 1])
         if "Batterie" in item:
             switches["Con"][0] = int(vec_inp[416 + index + 1])
-    ligne_u = [0] * 9
+    ligne_u: list = [0] * 9
     ligne_u[0] = np.sqrt(3) * ((float(vec_inp[3]) + float(vec_inp[4]) + float(vec_inp[5])) / 3 - float(vec_inp[6]))
     ligne_u[1] = np.sqrt(3) * ((float(vec_inp[7]) + float(vec_inp[8]) + float(vec_inp[9])) / 3 - float(vec_inp[10]))
     ligne_u[2] = np.sqrt(3) * ((float(vec_inp[11]) + float(vec_inp[12]) + float(vec_inp[13])) / 3 - float(vec_inp[14]))
@@ -566,8 +570,9 @@ def interface_meas(vec_inp: list):
     ligne_u[5] = np.sqrt(3) * ((float(vec_inp[83]) + float(vec_inp[84]) + float(vec_inp[85])) / 3 - float(vec_inp[86]))
     ligne_u[6] = np.sqrt(3) * ((float(vec_inp[87]) + float(vec_inp[88]) + float(vec_inp[89])) / 3 - float(vec_inp[90]))
     ligne_u[7] = np.sqrt(3) * ((float(vec_inp[91]) + float(vec_inp[92]) + float(vec_inp[93])) / 3 - float(vec_inp[94]))
-    ligne_u[8] = np.sqrt(3) * ((float(vec_inp[145]) + float(vec_inp[146]) + float(vec_inp[147])) / 3 - float(vec_inp[148]))
-    ligne_i = [0] * 9
+    ligne_u[8] = \
+        np.sqrt(3) * ((float(vec_inp[145]) + float(vec_inp[146]) + float(vec_inp[147])) / 3 - float(vec_inp[148]))
+    ligne_i: list = [0] * 9
     ligne_i[0] = (float(vec_inp[41]) + float(vec_inp[42]) + float(vec_inp[43])) - float(vec_inp[44])
     ligne_i[1] = (float(vec_inp[45]) + float(vec_inp[46]) + float(vec_inp[47])) - float(vec_inp[48])
     ligne_i[2] = (float(vec_inp[49]) + float(vec_inp[50]) + float(vec_inp[51])) - float(vec_inp[52])
@@ -577,8 +582,8 @@ def interface_meas(vec_inp: list):
     ligne_i[6] = (float(vec_inp[121]) + float(vec_inp[122]) + float(vec_inp[123])) - float(vec_inp[124])
     ligne_i[7] = (float(vec_inp[125]) + float(vec_inp[126]) + float(vec_inp[127])) - float(vec_inp[128])
     ligne_i[8] = (float(vec_inp[170]) + float(vec_inp[171]) + float(vec_inp[172])) - float(vec_inp[173])
-    charge_i = [0] * (11 + 3)
-    ond_i = [0] * 3
+    charge_i: list = [0] * (11 + 3)
+    ond_i: list = [0] * 3
     charge_i[0] = (float(vec_inp[149]) + float(vec_inp[150]) + float(vec_inp[151])) - float(vec_inp[152])
     charge_i[1] = (float(vec_inp[153]) + float(vec_inp[154]) + float(vec_inp[155])) - float(vec_inp[156])
     charge_i[2] = (float(vec_inp[157]) + float(vec_inp[158]) + float(vec_inp[159])) - float(vec_inp[160])
@@ -596,8 +601,8 @@ def interface_meas(vec_inp: list):
     charge_i[11] = (float(vec_inp[108]) + float(vec_inp[109]) + float(vec_inp[110])) - float(vec_inp[111])
     charge_i[12] = (float(vec_inp[112]) + float(vec_inp[113]) + float(vec_inp[114])) - float(vec_inp[115])
     charge_i[13] = (float(vec_inp[67]) + float(vec_inp[68]) + float(vec_inp[69])) - float(vec_inp[70])
-    charge_p = [0] * (11 + 3)
-    ond_p = [0] * 3
+    charge_p: list = [0] * (11 + 3)
+    ond_p: list = [0] * 3
     charge_p[0] = (float(vec_inp[191]) + float(vec_inp[192]) + float(vec_inp[193])) / 1000
     charge_p[1] = (float(vec_inp[194]) + float(vec_inp[195]) + float(vec_inp[196])) / 1000
     charge_p[2] = (float(vec_inp[197]) + float(vec_inp[198]) + float(vec_inp[199])) / 1000
@@ -615,8 +620,8 @@ def interface_meas(vec_inp: list):
     charge_p[11] = (float(vec_inp[233]) + float(vec_inp[234]) + float(vec_inp[235])) / 1000
     charge_p[12] = (float(vec_inp[236]) + float(vec_inp[237]) + float(vec_inp[238])) / 1000
     charge_p[13] = (float(vec_inp[239]) + float(vec_inp[240]) + float(vec_inp[241])) / 1000
-    charge_q = [0] * (11 + 3)
-    ond_q = [0] * 3
+    charge_q: list = [0] * (11 + 3)
+    ond_q: list = [0] * 3
     charge_q[0] = (float(vec_inp[242]) + float(vec_inp[243]) + float(vec_inp[244])) / 1000
     charge_q[1] = (float(vec_inp[245]) + float(vec_inp[246]) + float(vec_inp[247])) / 1000
     charge_q[2] = (float(vec_inp[248]) + float(vec_inp[249]) + float(vec_inp[250])) / 1000
@@ -634,7 +639,7 @@ def interface_meas(vec_inp: list):
     charge_q[11] = (float(vec_inp[284]) + float(vec_inp[285]) + float(vec_inp[286])) / 1000
     charge_q[12] = (float(vec_inp[287]) + float(vec_inp[288]) + float(vec_inp[289])) / 1000
     charge_q[13] = (float(vec_inp[290]) + float(vec_inp[291]) + float(vec_inp[292])) / 1000
-    ligne_p = [0] * 9
+    ligne_p: list = [0] * 9
     ligne_p[0] = (float(vec_inp[293]) + float(vec_inp[294]) + float(vec_inp[295])) / 1000
     ligne_p[1] = (float(vec_inp[296]) + float(vec_inp[297]) + float(vec_inp[298])) / 1000
     ligne_p[2] = (float(vec_inp[299]) + float(vec_inp[300]) + float(vec_inp[301])) / 1000
@@ -644,7 +649,7 @@ def interface_meas(vec_inp: list):
     ligne_p[6] = (float(vec_inp[311]) + float(vec_inp[312]) + float(vec_inp[313])) / 1000
     ligne_p[7] = (float(vec_inp[314]) + float(vec_inp[315]) + float(vec_inp[316])) / 1000
     ligne_p[8] = (float(vec_inp[317]) + float(vec_inp[318]) + float(vec_inp[319])) / 1000
-    ligne_q = [0] * 9
+    ligne_q: list = [0] * 9
     ligne_q[0] = (float(vec_inp[320]) + float(vec_inp[321]) + float(vec_inp[322])) / 1000
     ligne_q[1] = (float(vec_inp[323]) + float(vec_inp[324]) + float(vec_inp[325])) / 1000
     ligne_q[2] = (float(vec_inp[326]) + float(vec_inp[327]) + float(vec_inp[328])) / 1000
@@ -658,10 +663,10 @@ def interface_meas(vec_inp: list):
     f_q = (float(vec_inp[350]) + float(vec_inp[351]) + float(vec_inp[352])) / 1000
     soc = float(vec_inp[383])
     return switches, ligne_u, ligne_i, charge_i, ond_i, charge_p, charge_q, ond_p, ond_q, ligne_p, ligne_q, soc, f_p, \
-           f_q
+        f_q
 
 
-def figuring(grid_inp: plt.plot, meas_inp: list, meas: list, fig_type: str, title: str):
+def figuring(grid_inp: plt.plot, meas_inp: dict, meas: dict, fig_type: str, title: str):
     """
     @description: This function is used to plot the results of the simulation.
     @param grid_inp: grid input file
@@ -673,14 +678,15 @@ def figuring(grid_inp: plt.plot, meas_inp: list, meas: list, fig_type: str, titl
     """
     w, h = 10, 4
     plt.style.use('bmh')
+    plt.set_loglevel('WARNING')
     plt.rcParams['font.family'] = "sans-serif"
     plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
     plt.rc('xtick', labelsize=18)
     plt.rc('ytick', labelsize=18)
     times = pd.date_range('01-01-2018', periods=meas_inp["Nt"], freq='10MIN')
-    x_lab = times.strftime('%H:%M')
+    x_lab = times.strftime('%H:%M').to_list()
     times = pd.date_range('01-01-2018 02:00', periods=6, freq='4H')
-    x_tik = times.strftime('%H:%M')
+    x_tik = times.strftime('%H:%M').to_list()
     if fig_type == "Power":
         fig_n = 1
         figure = {"fig_" + str(fig_n): plt.figure()}
@@ -853,7 +859,7 @@ def forecast_defining(pv_hist: np.array, dem_p_hist: np.array, dem_q_hist: np.ar
     return fore_inp
 
 
-def rt_simulation(grid_inp: list, meas_inp: list, fore_inp: list, da_result: list, t: int):
+def rt_simulation(grid_inp: dict, meas_inp: dict, fore_inp: dict, da_result: dict, t: int):
     """
     @description: This function is used to simulate the real-time system
     @param grid_inp: the input of the grid
@@ -873,18 +879,16 @@ def rt_simulation(grid_inp: list, meas_inp: list, fore_inp: list, da_result: lis
     b = norm.ppf(0.999)
     a = max([-b, min([b, gauss(0, 1)])]) / norm.ppf(fore_inp["confidence"])
     rt_meas_inp["P_PV"] = fore_inp["P_PV"][t] + fore_inp["P_PV_zeta+"][t] / norm.ppf(fore_inp["confidence"]) \
-                          - (fore_inp["P_PV_zeta+"][t] + fore_inp["P_PV_zeta-"][t]) * a
+        - (fore_inp["P_PV_zeta+"][t] + fore_inp["P_PV_zeta-"][t]) * a
     rt_meas_inp["DM_P"] = np.zeros(len(fore_inp["Dem_P"]))
     rt_meas_inp["DM_Q"] = np.zeros(len(fore_inp["Dem_Q"]))
     for d in range(len(fore_inp["Dem_P"])):
         a = max([-b, min([b, gauss(0, 1)])]) / norm.ppf(fore_inp["confidence"])
         rt_meas_inp["DM_P"][d] = fore_inp["Dem_P"][d][t] + fore_inp["Dem_P_zeta+"][d][t] / norm.ppf(
-            fore_inp["confidence"]) \
-                                 - (fore_inp["Dem_P_zeta+"][d][t] + fore_inp["Dem_P_zeta-"][d][t]) * a
+            fore_inp["confidence"]) - (fore_inp["Dem_P_zeta+"][d][t] + fore_inp["Dem_P_zeta-"][d][t]) * a
         a = max([-b, min([b, gauss(0, 1)])]) / norm.ppf(fore_inp["confidence"])
         rt_meas_inp["DM_Q"][d] = fore_inp["Dem_Q"][d][t] + fore_inp["Dem_Q_zeta+"][d][t] / norm.ppf(
-            fore_inp["confidence"]) \
-                                 - (fore_inp["Dem_Q_zeta+"][d][t] + fore_inp["Dem_Q_zeta-"][d][t]) * a
+            fore_inp["confidence"]) - (fore_inp["Dem_Q_zeta+"][d][t] + fore_inp["Dem_Q_zeta-"][d][t]) * a
     rt_meas_inp["ST_SOC_des"] = np.zeros(np.size(grid_inp["storage_elements"], 0))
     rt_meas_inp["ST_SOC_t_1"] = np.zeros(np.size(grid_inp["storage_elements"], 0))
     for s in range(np.size(grid_inp["storage_elements"], 0)):
@@ -911,7 +915,7 @@ def rt_simulation(grid_inp: list, meas_inp: list, fore_inp: list, da_result: lis
     for f in range(np.size(grid_inp["grid_formers"], 0)):
         a = max([-b, min([b, gauss(0, 1)])]) / norm.ppf(fore_inp["confidence"])
         rt_meas_inp["Vmag"][f] = 1 + fore_inp["Vmag_zeta+"] / norm.ppf(fore_inp["confidence"]) \
-                                 - (fore_inp["Vmag_zeta+"] + fore_inp["Vmag_zeta-"]) * a
+            - (fore_inp["Vmag_zeta+"] + fore_inp["Vmag_zeta-"]) * a
         a = max([-b, min([b, gauss(0, 1)])]) / norm.ppf(fore_inp["confidence"])
         rt_meas_inp["fac_P_pos"][f] = max([0, a])
         rt_meas_inp["fac_P_neg"][f] = - min([0, a])

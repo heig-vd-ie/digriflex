@@ -1,7 +1,5 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
-import os.path
-
-from auxiliary import *
+from auxiliary import interface_meas, grid_topology_sim
 from datetime import timedelta, datetime
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
@@ -9,6 +7,8 @@ import coloredlogs
 import logging
 import math
 import mysql.connector
+import os.path
+import pandas as pd
 import pickle
 import rpy2.robjects as ro
 import tqdm
@@ -17,7 +17,7 @@ import warnings
 
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
-python64_path = r"C:/Users/" + os.environ.get('USERNAME') + r"/AppData/Local/Programs/Python/Python39/python.exe"
+python64_path = os.getcwd() + r"/.venv/Scripts/python.exe"
 network_name = "Case_4bus_DiGriFlex"
 log = logging.getLogger(__name__)
 coloredlogs.install(level="INFO")
@@ -26,17 +26,16 @@ coloredlogs.install(level="INFO")
 
 # Functions
 # ----------------------------------------------------------------------------------------------------------------------
-def interface_control_digriflex(vec_inp: list, date: datetime):
+def interface_control_digriflex(vec_inp: list, date: datetime, forecasting=True):
     """
     @param vec_inp: list of the input values
     @param date: the date of the input values
+    @param forecasting: boolean value for the forecasting
     vec_inp as ordered by Douglas in "07/10/2020 14:06" (See "data\ordre_informations_controle_2020.10.07.xlsx")
     output: vec_out = [p batt, q batt, p solar_max, q solar_max, p_step abb, cos_phi abb, p kaco, q kaco, p cinergia,
     q cinergia, p1 sop, q1 sop, p2 sop, q2 sop, p gm, q gm]
     """
     # Read inputs
-    battery_test_mode = False
-    battery_comp_mode = True
     fac_p, fac_q = 0.1, 0.1
     today = date
     timestep = today.hour * 6 + math.floor(today.minute / 10)
@@ -56,23 +55,28 @@ def interface_control_digriflex(vec_inp: list, date: datetime):
         soc = soc_desired[timestep] * 100 / 64
     else:
         soc = soc
-    with tqdm.tqdm(total=4, desc="Interface control") as pbar:
-        data_rt = access_data_rt(year=today.year, month=today.month, day=today.day, hour=today.hour,
-                                 minute=today.minute)
-        pbar.update()
-        data_rt = data_rt[-1:]
-        pred_for = data_rt[["Irralag144_for", "Irralag2_for", "Irralag3_for", "Irralag4_for", "Irralag5_for",
-                            "Irralag6_for"]]
-        result_p_pv, result_irra = forecasting_pv_rt(pred_for=pred_for, time_step=timestep + 1)
-        pbar.update()
-        pred_for = data_rt[["Pdemlag144_for", "Pdemlag2_for", "Pdemlag3_for", "Pdemlag4_for", "Pdemlag5_for",
-                            "Pdemlag6_for"]]
-        result_p_dm = forecasting_active_power_rt(pred_for=pred_for, time_step=timestep + 1, fac_p=fac_p)
-        pbar.update()
-        pred_for = data_rt[["Qdemlag144_for", "Qdemlag2_for", "Qdemlag3_for", "Qdemlag4_for", "Qdemlag5_for",
-                            "Qdemlag6_for"]]
-        result_q_dm = forecasting_reactive_power_rt(pred_for=pred_for, time_step=timestep + 1, fac_q=fac_q)
-        pbar.update()
+    data_rt = access_data_rt(year=today.year, month=today.month, day=today.day, hour=today.hour,
+                             minute=today.minute)
+    if forecasting:
+        with tqdm.tqdm(total=3, desc="Interface control") as pbar:
+            data_rt = data_rt[-1:]
+            pred_for = data_rt[["Irralag144_for", "Irralag2_for", "Irralag3_for", "Irralag4_for", "Irralag5_for",
+                                "Irralag6_for"]]
+            result_p_pv, result_irra = forecasting_pv_rt(pred_for=pred_for, time_step=timestep + 1)
+            pbar.update()
+            pred_for = data_rt[["Pdemlag144_for", "Pdemlag2_for", "Pdemlag3_for", "Pdemlag4_for", "Pdemlag5_for",
+                                "Pdemlag6_for"]]
+            result_p_dm = forecasting_active_power_rt(pred_for=pred_for, time_step=timestep + 1, fac_p=fac_p)
+            pbar.update()
+            pred_for = data_rt[["Qdemlag144_for", "Qdemlag2_for", "Qdemlag3_for", "Qdemlag4_for", "Qdemlag5_for",
+                                "Qdemlag6_for"]]
+            result_q_dm = forecasting_reactive_power_rt(pred_for=pred_for, time_step=timestep + 1, fac_q=fac_q)
+            pbar.update()
+    else:
+        date_rt = data_rt[-1:]
+        pred_for = date_rt
+        result_p_pv, result_irra, result_p_dm, result_q_dm = data_rt["P"].iloc[-1], data_rt["irra"].iloc[-1], \
+            data_rt["Pdem"].iloc[-1], data_rt["Qdem"].iloc[-1]
     grid_inp = grid_topology_sim(network_name, vec_inp)
     p_net = p_sc[timestep] + 0.5 * rpn_sc[timestep] - 0 * rpp_sc[timestep]
     q_net = q_sc[timestep] + 0 * rqn_sc[timestep] - 0 * rqp_sc[timestep]
@@ -88,16 +92,15 @@ def interface_control_digriflex(vec_inp: list, date: datetime):
               'pickle.load(file_to_read);' +
               'file_to_read.close();'
               'from src.optimization_prob import *;'
-              'abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q = ' +
+              'abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q, rt_res = ' +
               'rt_opt_digriflex(grid_inp, v_mag, p_net, q_net, forecast_pv, forecast_dm, soc, soc_desired, prices);'
               'file_to_store = open(r\'.cache/output/tmp_rt.pickle\', \'wb\');' +
-              'pickle.dump((abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q), file_to_store);' +
+              'pickle.dump((abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q, rt_res), ' +
+              'file_to_store);' +
               'file_to_store.close()\"'
               )
     with open(r".cache/output/tmp_rt.pickle", "rb") as file_to_read:
-        res = pickle.load(file_to_read)
-        print(res)
-        (abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q) = res
+        (abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q, rt_res) = pickle.load(file_to_read)
     # Test and save data
     df = pd.DataFrame([[today, pred_for.index[-1], data_rt.iloc[-1]['Plag2_for'] / 1000,
                         data_rt.iloc[-1]['Irralag2_for'],
@@ -115,30 +118,7 @@ def interface_control_digriflex(vec_inp: list, date: datetime):
     vec_out[1] = battery_q_sp  # output in kVar // sum of phase
     vec_out[4] = abb_p_sp
     vec_out[5] = abb_c_sp
-    if battery_test_mode:
-        col = ['0', 'now', 'step']
-        df = pd.read_csv(r'.cache/step.csv', names=col, header=None)
-        step = df['step'].values
-        step = step[-1]
-        log.info("Step {} is running.".format(step))
-        vec_out[0] = 50
-        vec_out[1] = 0
-        step = step + 1
-        df = pd.DataFrame([[today, step]])
-        df.to_csv(r'.cache\step.csv', mode='a', header=False)
-    if battery_comp_mode:
-        p_sp = vec_out[0]
-        q_sp = vec_out[1]
-        log.info("Set point active and reactive power are " + str(p_sp) + ", " + str(q_sp) + ".")
-        s_sp = p_sp * p_sp + q_sp * q_sp
-        vec_out[1] = (q_sp - 2.4654) / 0.9723
-        if s_sp <= 200:
-            vec_out[0] = (p_sp + 0.2016 + 0.0027 * q_sp + 0.0130 * q_sp * q_sp) / (0.6966 + 0.0090 * q_sp)
-        elif s_sp <= 400:
-            vec_out[0] = (p_sp - 0.1800 + 0.0749 * q_sp + 0.0053 * q_sp * q_sp) / (0.9360 - 0.0276 * q_sp)
-        else:
-            vec_out[0] = p_sp
-    return vec_out
+    return vec_out, rt_res
 
 
 def access_data_rt(year: int, month: int, day: int, hour: int = 23, minute: int = 50):
@@ -184,13 +164,14 @@ def access_data_rt(year: int, month: int, day: int, hour: int = 23, minute: int 
     my_cursor1 = mydb.cursor()
     my_cursor1.execute(
         "SELECT `Date and Time`, `Labo Reine.ABB.Power AC [W]`, `Meteo.Irradiance.Rayonnement Global moyen [W/m2]`,"
-        "`Meteo.Air.Pression Brute [hPa]`, `Meteo.Air.Humidite [pourcent]`, `Meteo.Air.Temperature exterieure [degre C]`,"
-        "`Meteo.Air.Vent.v moyen [m/s]` "
+        "`Meteo.Air.Pression Brute [hPa]`, `Meteo.Air.Humidite [pourcent]`,"
+        "`Meteo.Air.Temperature exterieure [degre C]`, `Meteo.Air.Vent.v moyen [m/s]` "
         "FROM db_iese_" + str(year)
     )
     my_data1 = my_cursor1.fetchall()
-    my_result = pd.DataFrame.from_records(my_data1, columns=['Date and Time', 'P', 'irra', 'pres', 'relh', 'temp',
-                                                            'wind'], index=['Date and Time'])
+    my_result = pd.DataFrame.from_records(my_data1,
+                                          columns=['Date and Time', 'P', 'irra', 'pres', 'relh', 'temp', 'wind'],
+                                          index=['Date and Time'])
     my_result = my_result[my_result.index < date_now.strftime("%Y-%m-%d %H:%M")]
     my_result = my_result[my_result.index > date_1month.strftime("%Y-%m-%d %H:%M")]
     my_result = my_result.resample('10min').mean()
@@ -209,34 +190,34 @@ def access_data_rt(year: int, month: int, day: int, hour: int = 23, minute: int 
     )
     my_data2 = my_cursor2.fetchall()
     my_data2 = pd.DataFrame.from_records(my_data2, columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'],
-                                        index=['Date and Time'])
+                                         index=['Date and Time'])
     my_data2 = my_data2[my_data2.index < date_now.strftime("%Y-%m-%d %H:%M")]
     my_data2 = my_data2[my_data2.index > date_1month.strftime("%Y-%m-%d %H:%M")]
     my_data2.index = my_data2.index.floor('10min')
     my_data2 = my_data2.resample('10min').interpolate(method='linear')
-    now = datetime.now()
-    if datetime.strftime(my_data2.index[-1], '%Y-%m-%d %H:%M') \
-            < datetime.strftime(now - timedelta(minutes=10), '%Y-%m-%d %H:%M'):
-        new_row = [[pd.to_datetime(my_data2.index[-1] + timedelta(minutes=10)), 0, 0, 0, 0, 0, 0]]
-        new_row = pd.DataFrame(new_row, columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'])
-        new_row = new_row.set_index('Date and Time')
-        my_data2 = my_data2.append(new_row, ignore_index=False)
+    new_row = [[pd.to_datetime(my_data2.index[-1] + timedelta(minutes=10)), 0, 0, 0, 0, 0, 0]]
+    new_row = pd.DataFrame(new_row, columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'])
+    new_row = new_row.set_index('Date and Time')
+    my_data2 = pd.concat([my_data2, new_row], ignore_index=False)
+    my_data2 = my_data2.astype(float)
     my_result['Pdem'] = (my_data2['PL1'] + my_data2['PL2'] + my_data2['PL3']) / 3
     my_result['Pdemlag2_for'] = (my_data2['PL1'].shift(1) + my_data2['PL2'].shift(1) + my_data2['PL3'].shift(1)) / 3
     my_result['Pdemlag3_for'] = (my_data2['PL1'].shift(2) + my_data2['PL2'].shift(2) + my_data2['PL3'].shift(2)) / 3
     my_result['Pdemlag4_for'] = (my_data2['PL1'].shift(3) + my_data2['PL2'].shift(3) + my_data2['PL3'].shift(3)) / 3
     my_result['Pdemlag5_for'] = (my_data2['PL1'].shift(4) + my_data2['PL2'].shift(4) + my_data2['PL3'].shift(4)) / 3
     my_result['Pdemlag6_for'] = (my_data2['PL1'].shift(5) + my_data2['PL2'].shift(5) + my_data2['PL3'].shift(5)) / 3
-    my_result['Pdemlag144_for'] = (my_data2['PL1'].shift(143) + my_data2['PL2'].shift(143) + my_data2['PL3'].shift(143)) / 3
+    my_result['Pdemlag144_for'] = \
+        (my_data2['PL1'].shift(143) + my_data2['PL2'].shift(143) + my_data2['PL3'].shift(143)) / 3
     my_result['Qdem'] = (my_data2['QL1'] + my_data2['QL2'] + my_data2['QL3']) / 3
     my_result['Qdemlag2_for'] = (my_data2['QL1'].shift(1) + my_data2['QL2'].shift(1) + my_data2['QL3'].shift(1)) / 3
     my_result['Qdemlag3_for'] = (my_data2['QL1'].shift(2) + my_data2['QL2'].shift(2) + my_data2['QL3'].shift(2)) / 3
     my_result['Qdemlag4_for'] = (my_data2['QL1'].shift(3) + my_data2['QL2'].shift(3) + my_data2['QL3'].shift(3)) / 3
     my_result['Qdemlag5_for'] = (my_data2['QL1'].shift(4) + my_data2['QL2'].shift(4) + my_data2['QL3'].shift(4)) / 3
     my_result['Qdemlag6_for'] = (my_data2['QL1'].shift(5) + my_data2['QL2'].shift(5) + my_data2['QL3'].shift(5)) / 3
-    my_result['Qdemlag144_for'] = (my_data2['QL1'].shift(143) + my_data2['QL2'].shift(143) + my_data2['QL3'].shift(143)) / 3
+    my_result['Qdemlag144_for'] = \
+        (my_data2['QL1'].shift(143) + my_data2['QL2'].shift(143) + my_data2['QL3'].shift(143)) / 3
     date_now = datetime.strptime(str(year) + '-' + str(month) + '-' + str(day) + " " + str(hour) + ":" + str(minute),
-                                '%Y-%m-%d %H:%M')
+                                 '%Y-%m-%d %H:%M')
     if datetime.strftime(my_result.index[-1], '%Y-%m-%d %H:%M') \
             < datetime.strftime(date_now - timedelta(hours=24), '%Y-%m-%d %H:%M'):
         warnings.warn("The recorded data is older than 24 hours.")

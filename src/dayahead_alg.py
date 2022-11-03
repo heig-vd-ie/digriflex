@@ -1,10 +1,21 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
-from realtime_alg import *
+from auxiliary import grid_topology_sim
+from datetime import datetime, timedelta
+from realtime_alg import access_data_rt
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.conversion import localconverter
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
+import coloredlogs
+import logging
+import matplotlib.pyplot as plt
 import numpy as np
+import os
+import pandas as pd
+import pickle
 import quantecon as qe
 import questionary
+import rpy2.robjects as ro
 import scipy.stats as ss
 import tqdm
 
@@ -12,10 +23,17 @@ import tqdm
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
 dt = datetime.strptime
-python64_path = r"C:/Users/" + os.environ.get('USERNAME') + r"/AppData/Local/Programs/Python/Python39/python.exe"
+python64_path = os.getcwd() + r"/.venv/Scripts/python.exe"
 network_name = "Case_4bus_DiGriFlex"
 log = logging.getLogger(__name__)
 coloredlogs.install(level="INFO")
+plt.rcParams["figure.figsize"] = (10, 6)
+plt.rcParams["font.size"] = 14
+plt.rcParams["font.family"] = "Arial"
+plt.rcParams["grid.color"] = "k"
+plt.rcParams["grid.linestyle"] = "--"
+plt.rcParams["grid.linewidth"] = 0.5
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
@@ -199,6 +217,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     """
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
     plt.plot(np.transpose(data0))
+    plt.ylabel(name, fontsize=18)
     plt.savefig(r'.cache/figures/f3' + name + '_scen.pdf', bbox_inches='tight')
     plt.close()
     data1 = np.resize(data0, (previous_days * 144, 1))
@@ -245,6 +264,12 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
             initial_state = digit / 2
         x = mc.simulate(init=int(initial_state), ts_length=144) / (np.sqrt(np.size(tm))-1)
         y_scen[s, :] = np.multiply(x, l_ind) + b
+    plt.plot(np.transpose(data0[0, :]))
+    plt.plot(np.transpose(y_scen[1, :]))
+    plt.legend(['Real data of yesterday', 'a scenario based on Markov Chain'], fontsize=18)
+    plt.ylabel(name, fontsize=18)
+    plt.savefig(r'.cache/figures/m3' + name + '_scen.pdf', bbox_inches='tight')
+    plt.close()
     model = KMeans(n_clusters=3, random_state=0).fit(y_scen)
     output = model.cluster_centers_
     del_ind = model.predict(np.resize(y_pred0, (1, 144)))
@@ -264,7 +289,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     return vec_out
 
 
-def day_ahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous_days: int = 10):
+def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous_days: int = 10):
     """
     @description: This function is used to calculate the day-ahead power production of DiGriFlex.
     @param robust_par: The parameters of the robust model.
@@ -339,8 +364,8 @@ def day_ahead_alg(robust_par: float, mode_forecast: str, date: datetime, previou
             dd = previous_days
             t_end = data_rt.index[-1].floor('1d')
             t_from = t_end - timedelta(days=dd) + timedelta(minutes=10)
-            pv_pred_da = np.resize(data_rt['P'][t_from:t_end].to_numpy(), (dd, 144)) / 1000
             pbar.update()
+            pv_pred_da = np.resize(data_rt['P'][t_from:t_end].to_numpy(), (dd, 144)) / 1000
             pdem_pred_da = np.resize(data_rt['Pdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
             qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
             pbar.update()
@@ -372,7 +397,8 @@ def day_ahead_alg(robust_par: float, mode_forecast: str, date: datetime, previou
             result_p_dm = forecasting3(data0=pdem_pred_da, name='Demand active power (kW)', previous_days=previous_days)
             pbar.update()
             pbar.set_description("Forecasting Qdem")
-            result_q_dm = forecasting3(data0=qdem_pred_da, name='Demand reactive power (kVar)', previous_days=previous_days)
+            result_q_dm = forecasting3(data0=qdem_pred_da, name='Demand reactive power (kVar)',
+                                       previous_days=previous_days)
             pbar.update()
             pbar.set_description("Forecasting")
     else:
@@ -393,7 +419,7 @@ def day_ahead_alg(robust_par: float, mode_forecast: str, date: datetime, previou
     with open(r".cache/output/tmp_da.pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, result_v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price,
                      robust_par), file_to_store)
-    tomorrow = datetime.now() + timedelta(days=1)
+    tomorrow = date + timedelta(days=1)
     with open(r".cache/output/for" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, result_v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price,
                      robust_par), file_to_store)
@@ -421,7 +447,7 @@ def day_ahead_alg(robust_par: float, mode_forecast: str, date: datetime, previou
     if (not os.path.isfile(r".cache/output/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle")) or (obj != 0):
         with open(r".cache/output/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
             pickle.dump((p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj), file_to_store)
-    return True
+    return obj, True
 
 
 # Main
@@ -438,6 +464,6 @@ if __name__ == '__main__':
     else:
         ROBUST_PAR = float(questionary.text("Confidence level of robust optimization problem?", default="0.8").ask())
     DATE = questionary.text("Date", default=datetime.now().strftime("%Y-%m-%d")).ask()
-    flag = day_ahead_alg(robust_par=ROBUST_PAR, mode_forecast=MODE_FORECAST, date=dt(DATE, "%Y-%m-%d"),
-                         previous_days=NUM_DAYS)
+    _, flag = dayahead_alg(robust_par=ROBUST_PAR, mode_forecast=MODE_FORECAST, date=dt(DATE, "%Y-%m-%d"),
+                           previous_days=NUM_DAYS)
     log.info("Day_ahead optimization finished: {}".format(flag))
