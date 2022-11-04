@@ -18,6 +18,7 @@ questionary = "^1.10.0"
 tqdm = "^4.64.1"
 rpy2 = "^3.5.5"
 mysql-connector-python = "^8.0.31"
+python-dotenv = "^0.21.0"
 
 [tool.poetry.dev-dependencies]
 

@@ -1,6 +1,7 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
 from auxiliary import interface_meas, grid_topology_sim
 from datetime import timedelta, datetime
+from dotenv import dotenv_values
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 import coloredlogs
@@ -156,11 +157,12 @@ def access_data_rt(year: int, month: int, day: int, hour: int = 23, minute: int 
     date_now = datetime.strptime(str(year) + '-' + str(month) + '-' + str(day) + " " + str(hour) + ":" + str(minute),
                                  "%Y-%m-%d %H:%M")
     date_1month = date_now - timedelta(days=30)
-    mydb = mysql.connector.connect(host="10.192.48.47",
-                                   user="heigvd_meteo_ro",
-                                   port="3306",
-                                   password="at5KUPusS9",
-                                   database="heigvdch_meteo")  # Database for reading real-time data
+    env_vars = dotenv_values()
+    mydb = mysql.connector.connect(host=env_vars["HOST"],
+                                   user=env_vars["USER"],
+                                   port=env_vars["PORT"],
+                                   password=env_vars["PASSWORD"],
+                                   database=env_vars["DATABASE"])  # Database for reading real-time data
     my_cursor1 = mydb.cursor()
     my_cursor1.execute(
         "SELECT `Date and Time`, `Labo Reine.ABB.Power AC [W]`, `Meteo.Irradiance.Rayonnement Global moyen [W/m2]`,"

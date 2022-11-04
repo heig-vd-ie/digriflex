@@ -527,8 +527,8 @@ def rt_optimization(rt_meas_inp: dict, meas_inp: dict, grid_inp: dict, da_result
         da_result["Solution_con_Q"] = solution_con_q
         da_result["time_out"] = False
         log.info("Real-time problem is solved.")
-    except ExceptionGroup:
-        log.warning("Gurobi optimization time out")
+    except (Exception,):
+        log.warning("Real-time problem is not converged.")
         da_result["Solution_ST_SOC_RT"] = st_soc_t_1
         da_result["time_out"] = True
         d_res = 1
@@ -1310,7 +1310,8 @@ def da_optimization_robust(case_name: str, case_inp: dict, grid_inp: dict, meas_
         output_df.loc['DA_RQ_neg_avg', case_name] = sum(da_rqq_neg) / len(da_rqq_neg)
         da_result["time_out"] = False
         log.info("Dayahead problem is solved with final objective " + str(obj.getValue()) + ".")
-    except ExceptionGroup:
+    except (Exception,):
+        log.warning("Dayahead problem is not converged.")
         da_result["time_out"] = True
     return da_result, output_df
 
@@ -1823,6 +1824,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
         output_df.loc['DA_RQ_neg_avg', case_name] = sum(da_rqq_neg) / len(da_rqq_neg)
         da_result["time_out"] = False
         log.info("Dayahead problem is solved with final objective " + str(obj.getValue()) + ".")
-    except ExceptionGroup:
+    except (Exception,):
+        log.warning("Dayahead problem is not converged.")
         da_result["time_out"] = True
     return da_result, output_df
