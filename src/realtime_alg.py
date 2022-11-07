@@ -196,6 +196,7 @@ def access_data_rt(year: int, month: int, day: int, hour: int = 23, minute: int 
     my_data2 = my_data2[my_data2.index < date_now.strftime("%Y-%m-%d %H:%M")]
     my_data2 = my_data2[my_data2.index > date_1month.strftime("%Y-%m-%d %H:%M")]
     my_data2.index = my_data2.index.floor('10min')
+    my_data2 = my_data2[~my_data2.index.duplicated()]
     my_data2 = my_data2.resample('10min').interpolate(method='linear')
     new_row = [[pd.to_datetime(my_data2.index[-1] + timedelta(minutes=10)), 0, 0, 0, 0, 0, 0]]
     new_row = pd.DataFrame(new_row, columns=['Date and Time', 'PL1', 'PL2', 'PL3', 'QL1', 'QL2', 'QL3'])

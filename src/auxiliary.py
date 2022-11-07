@@ -216,7 +216,7 @@ def grid_topology_sim(case_name: str, vec_inp: list):
                 {"bus": "6", "pos_x": 0.0, "pos_y": 0.0, "units": "m", "U_kV": 0.4, "Vmin": 0.9, "Vmax": 1.1},
             ],
             "transformers": [
-                {"bus_j": "0", "bus_k": "1", "S_n_kVA": 250.0, "U_1_kV": 20.0, "U_2_kV": 0.4, "Cap": 250.0,
+                {"bus_j": "0", "bus_k": "1", "S_n_kVA": 250.0, "U_1_kV": 20.0, "U_2_kV": 0.4, "Cap": 250,
                  "R_cc_pu": np.sqrt(0.041 ** 2 / (1 + 2.628 ** 2)),
                  "X_cc_pu": 2.628 * np.sqrt(0.041 ** 2 / (1 + 2.628 ** 2)),
                  "connection": "Dyn11", "conductors_1": 3, "conductors_2": 4},

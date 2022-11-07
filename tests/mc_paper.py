@@ -1,7 +1,14 @@
 from dayahead_alg import dayahead_alg
 from datetime import datetime
+import coloredlogs
+import logging
 import matplotlib.pyplot as plt
 
+
+# Global variables
+# ----------------------------------------------------------------------------------------------------------------------
+log = logging.getLogger(__name__)
+coloredlogs.install(level="INFO")
 dt = datetime.strptime
 
 if __name__ == '__main__':
@@ -18,11 +25,12 @@ if __name__ == '__main__':
         # {"robust_par": 1, "mode_forecast": "MarkovChain", "date": dt("2021-08-31", "%Y-%m-%d"), "previous_days": 30},
         # {"robust_par": 1, "mode_forecast": "MarkovChain", "date": dt("2021-09-30", "%Y-%m-%d"), "previous_days": 30},
         # {"robust_par": 1, "mode_forecast": "MarkovChain", "date": dt("2021-10-31", "%Y-%m-%d"), "previous_days": 30},
-        {"robust_par": 1, "mode_forecast": "MarkovChain", "date": dt("2021-11-30", "%Y-%m-%d"), "previous_days": 30},
+        # {"robust_par": 1, "mode_forecast": "MarkovChain", "date": dt("2021-11-30", "%Y-%m-%d"), "previous_days": 30},
         {"robust_par": 1, "mode_forecast": "MarkovChain", "date": dt("2021-12-31", "%Y-%m-%d"), "previous_days": 30},
     ]
     obj_list = []
     for CASE in CASES:
+        log.info("Case of " + str(CASE["date"]))
         obj = dayahead_alg(**CASE)
         obj_list.append(obj)
     plt.style.use('default')

@@ -238,8 +238,8 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     ind = model.predict(np.resize(y_pred0, (1, 144)))
     ind2 = model.predict(data0)
     y = np.transpose(data0[ind2 == ind])
-    b = np.min(y)
-    l_ind = np.max(y) - np.min(y)
+    b = np.quantile(y, 1/20)
+    l_ind = np.quantile(y, 19/20) - np.quantile(y, 1/20)
     y2 = np.divide(y - b, l_ind)
     y2 = np.resize(np.transpose(y2), (y2.shape[1]*144, 1))
     y2 = y2[y2 > 0.01]
@@ -259,8 +259,8 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
             b = 0
             initial_state = 0
         else:
-            l_ind = np.max(y) - np.min(y)
-            b = np.min(y)
+            l_ind = np.quantile(y, 19/20) - np.quantile(y, 1/20)
+            b = np.quantile(y, 1/20)
             initial_state = digit / 2
         x = mc.simulate(init=int(initial_state), ts_length=144) / (np.sqrt(np.size(tm))-1)
         y_scen[s, :] = np.multiply(x, l_ind) + b

@@ -187,8 +187,7 @@ def rt_optimization(rt_meas_inp: dict, meas_inp: dict, grid_inp: dict, da_result
     for nn in grid_inp["lines"]:
         line_set.append(tuple((find_n(nn["bus_j"], grid_inp["buses"]),
                                find_n(nn["bus_k"], grid_inp["buses"]))))
-        line_smax[find_n(nn["bus_j"], grid_inp["buses"]),
-                  find_n(nn["bus_k"], grid_inp["buses"])] = nn["Cap"]
+        line_smax[find_n(nn["bus_j"], grid_inp["buses"]), find_n(nn["bus_k"], grid_inp["buses"])] = nn["Cap"]
         line_vbase[find_n(nn["bus_j"], grid_inp["buses"]),
                    find_n(nn["bus_k"], grid_inp["buses"])] = \
             grid_inp["buses"][find_n(nn["bus_k"], grid_inp["buses"])]["U_kV"]
@@ -647,8 +646,7 @@ def da_optimization_robust(case_name: str, case_inp: dict, grid_inp: dict, meas_
     for n in grid_inp["transformers"]:
         line_set.append(tuple((find_n(n["bus_j"], grid_inp["buses"]),
                                find_n(n["bus_k"], grid_inp["buses"]))))
-        line_smax[find_n(n["bus_j"], grid_inp["buses"]),
-                  find_n(n["bus_k"], grid_inp["buses"])] = n["Cap"]
+        line_smax[find_n(n["bus_j"], grid_inp["buses"]), find_n(n["bus_k"], grid_inp["buses"])] = n["Cap"]
         line_vbase[find_n(n["bus_j"], grid_inp["buses"]),
                    find_n(n["bus_k"], grid_inp["buses"])] = \
             grid_inp["buses"][find_n(n["bus_k"], grid_inp["buses"])]["U_kV"]
@@ -1364,8 +1362,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
             nn["X_cc_pu"] * grid_inp["Zbase"]
     for nn in grid_inp["lines"]:
         line_set.append(tuple((find_n(nn["bus_j"], grid_inp["buses"]), find_n(nn["bus_k"], grid_inp["buses"]))))
-        line_smax[find_n(nn["bus_j"], grid_inp["buses"]),
-                  find_n(nn["bus_k"], grid_inp["buses"])] = nn["Cap"]
+        line_smax[find_n(nn["bus_j"], grid_inp["buses"]), find_n(nn["bus_k"], grid_inp["buses"])] = nn["Cap"]
         line_vbase[find_n(nn["bus_j"], grid_inp["buses"]), find_n(nn["bus_k"], grid_inp["buses"])] = \
             grid_inp["buses"][find_n(nn["bus_k"], grid_inp["buses"])]["U_kV"]
         line_zre[find_n(nn["bus_j"], grid_inp["buses"]), find_n(nn["bus_k"], grid_inp["buses"])] = \
@@ -1524,6 +1521,8 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
     line_q_t_abs_max = prob_da.addVars(line_set, time_set, scen_omega_set, lb=-big_m, ub=big_m)
     line_p_b_abs_max = prob_da.addVars(line_set, time_set, scen_omega_set, lb=-big_m, ub=big_m)
     line_q_b_abs_max = prob_da.addVars(line_set, time_set, scen_omega_set, lb=-big_m, ub=big_m)
+    line_rel1 = prob_da.addVars(line_set, time_set, scen_omega_set, lb=0, ub=big_m)
+    line_rel2 = prob_da.addVars(line_set, time_set, scen_omega_set, lb=0, ub=big_m)
     pv_p = prob_da.addVars(pv_set, time_set, scen_omega_set, lb=0, ub=big_m)
     pv_q = prob_da.addVars(pv_set, time_set, scen_omega_set, lb=-big_m, ub=big_m)
     st_p = prob_da.addVars(st_set, time_set, scen_omega_set, lb=-big_m, ub=big_m)
@@ -1668,6 +1667,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
             # (12e) of mostafa
             prob_da.addConstr(line_p_b_abs_max[n1, n2, t, om] * line_p_b_abs_max[n1, n2, t, om]
                               + line_q_b_abs_max[n1, n2, t, om] * line_q_b_abs_max[n1, n2, t, om]
+                              - line_rel1[n1, n2, t, om]
                               <= vmag_sq[n2, t, om] * (line_smax[n1, n2] ** 2) * 9 / (1000 * line_vbase[n1, n2] ** 2))
             prob_da.addConstr(line_p_b_abs_max[n1, n2, t, om] >= line_p_b_hat[n1, n2, t, om])
             prob_da.addConstr(line_p_b_abs_max[n1, n2, t, om] >= -line_p_b_hat[n1, n2, t, om])
@@ -1680,6 +1680,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
             # (12f) of mostafa
             prob_da.addConstr(line_p_t_abs_max[n1, n2, t, om] * line_p_t_abs_max[n1, n2, t, om]
                               + line_q_t_abs_max[n1, n2, t, om] * line_q_t_abs_max[n1, n2, t, om]
+                              - line_rel2[n1, n2, t, om]
                               <= vmag_sq[n1, t, om] * (line_smax[n1, n2] ** 2) * 9 / (1000 * line_vbase[n1, n2] ** 2))
             prob_da.addConstr(line_p_t_abs_max[n1, n2, t, om] >= line_p_t_hat[n1, n2, t, om])
             prob_da.addConstr(line_p_t_abs_max[n1, n2, t, om] >= -line_p_t_hat[n1, n2, t, om])
@@ -1764,9 +1765,10 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
             prob_da.addConstr(
                 obj_loss[n1, n2, t, om] >= sum(line_zre[n1, n2] * line_f[n1, n2, t, om] for n1, n2 in line_set))
     if loss_consideration == 0:
-        prob_da.setObjective(1 * deltat * obj_da_market.sum(), GRB.MAXIMIZE)
+        prob_da.setObjective(deltat * obj_da_market.sum() - 0.1 * (line_rel1.sum() + line_rel2.sum()), GRB.MAXIMIZE)
     else:
         prob_da.setObjective(obj_loss.sum(), GRB.MINIMIZE)
+    prob_da.Params.BarHomogeneous = 1
     prob_da.Params.OutputFlag = 0
     prob_da.optimize()
     da_result = {}
@@ -1813,9 +1815,10 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
         da_result["DA_RQ_pos"] = da_rqq_pos
         da_result["DA_RQ_neg"] = da_rqq_neg
         da_result["delta"] = 0.001
-        obj = prob_da.getObjective()
-        da_result["obj"] = obj.getValue()
-        output_df.loc['obj', case_name] = obj.getValue()
+        obj = prob_da.getAttr('x', obj_da_market)
+        obj = [obj[0, t] for t in time_set]
+        da_result["obj"] = sum(obj) * deltat * 0.1
+        output_df.loc['obj', case_name] = sum(obj)
         output_df.loc['DA_P_avg', case_name] = sum(da_pp) / len(da_pp)
         output_df.loc['DA_Q_avg', case_name] = sum(da_qq) / len(da_qq)
         output_df.loc['DA_RP_pos_avg', case_name] = sum(da_rpp_pos) / len(da_rpp_pos)
@@ -1823,7 +1826,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
         output_df.loc['DA_RQ_pos_avg', case_name] = sum(da_rqq_pos) / len(da_rqq_pos)
         output_df.loc['DA_RQ_neg_avg', case_name] = sum(da_rqq_neg) / len(da_rqq_neg)
         da_result["time_out"] = False
-        log.info("Dayahead problem is solved with final objective " + str(obj.getValue()) + ".")
+        log.info("Dayahead problem is solved with final objective " + str(da_result["obj"]) + ".")
     except (Exception,):
         log.warning("Dayahead problem is not converged.")
         da_result["time_out"] = True
