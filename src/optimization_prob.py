@@ -122,7 +122,7 @@ def rt_opt_digriflex(grid_inp: dict, v_mag: float, p_net: float, q_net: float, f
         abb_q_sp = round(abb_q_sp[0], 3)
         battery_p_sp = round(battery_p_sp[0], 3)
         battery_q_sp = - round(battery_q_sp[0], 3)
-        log.info(f'Success, {abb_p_sp}, {abb_q_sp}, {battery_p_sp}, {battery_q_sp}')
+        # log.info(f'Success, {abb_p_sp}, {abb_q_sp}, {battery_p_sp}, {battery_q_sp}')
         f_p = f_p[0]
         f_q = f_q[0]
         abb_p_exp = abb_p_sp
@@ -424,9 +424,6 @@ def rt_optimization(rt_meas_inp: dict, meas_inp: dict, grid_inp: dict, da_result
         prob_rt.addConstr(line_q_b_hat[n1, n2] == - net_q[n2]
                           + sum(line_q_t_hat[n3, n4] * np.where(n3 == n2, 1, 0) for n3, n4 in line_set))
         # (12e) of mostafa
-        prob_rt.addConstr(line_p_b_abs_max[n1, n2] * line_p_b_abs_max[n1, n2]
-                          + line_q_b_abs_max[n1, n2] * line_q_b_abs_max[n1, n2]
-                          <= vmag_sq[n2] * (line_smax[n1, n2] ** 2) * 9 / (1000 * line_vbase[n1, n2] ** 2))
         prob_rt.addConstr(line_p_b_abs_max[n1, n2] >= line_p_b_hat[n1, n2])
         prob_rt.addConstr(line_p_b_abs_max[n1, n2] >= -line_p_b_hat[n1, n2])
         prob_rt.addConstr(line_p_b_abs_max[n1, n2] >= line_p_b_over[n1, n2])
@@ -436,9 +433,6 @@ def rt_optimization(rt_meas_inp: dict, meas_inp: dict, grid_inp: dict, da_result
         prob_rt.addConstr(line_q_b_abs_max[n1, n2] >= line_q_b_over[n1, n2])
         prob_rt.addConstr(line_q_b_abs_max[n1, n2] >= -line_q_b_over[n1, n2])
         # (12f) of mostafa
-        prob_rt.addConstr(line_p_t_abs_max[n1, n2] * line_p_t_abs_max[n1, n2]
-                          + line_q_t_abs_max[n1, n2] * line_q_t_abs_max[n1, n2]
-                          <= vmag_sq[n1] * (line_smax[n1, n2] ** 2) * 9 / (1000 * line_vbase[n1, n2] ** 2))
         prob_rt.addConstr(line_p_t_abs_max[n1, n2] >= line_p_t_hat[n1, n2])
         prob_rt.addConstr(line_p_t_abs_max[n1, n2] >= -line_p_t_hat[n1, n2])
         prob_rt.addConstr(line_p_t_abs_max[n1, n2] >= line_p_t_over[n1, n2])
@@ -497,7 +491,7 @@ def rt_optimization(rt_meas_inp: dict, meas_inp: dict, grid_inp: dict, da_result
                           - conpoint_q_dev_pos[f] + conpoint_q_dev_neg[f])
         prob_rt.addConstr(sum(vmag_sq[n] * conpoint_inc_mat[f, n] for n in node_set)
                           == conpoint_vmag[f] * conpoint_vmag[f])
-    prob_rt.setObjective(1000 * deltat * obj_rt_market.sum(), GRB.MAXIMIZE)
+    prob_rt.setObjective(1000 * deltat * obj_rt_market.sum(), GRB.MINIMIZE)
     prob_rt.Params.BarHomogeneous = 1
     prob_rt.Params.OutputFlag = 0
     prob_rt.optimize()
@@ -515,8 +509,9 @@ def rt_optimization(rt_meas_inp: dict, meas_inp: dict, grid_inp: dict, da_result
         solution_con_p_dev_neg = prob_rt.getAttr('x', conpoint_p_dev_neg)
         solution_con_q_dev_neg = prob_rt.getAttr('x', conpoint_q_dev_neg)
         solution_con_q_dev_pos = prob_rt.getAttr('x', conpoint_q_dev_pos)
-        da_result["Solution_dev"] = solution_con_p_dev_neg.sum() > 0.01 + solution_con_q_dev_neg.sum() > 0.01 + \
-            solution_con_p_dev_pos.sum() > 0.01 + solution_con_q_dev_pos.sum() > 0.01
+        d_res = (solution_con_p_dev_pos[0] + solution_con_p_dev_neg[0] + solution_con_q_dev_neg[0]
+                 + solution_con_q_dev_pos[0]) / 0.1
+        d_res = 1 if d_res > 1 else d_res
         da_result["Solution_ST_SOC_RT"] = solution_st_soc0
         da_result["Solution_PV_P"] = solution_pv_p
         da_result["Solution_PV_Q"] = solution_pv_q
@@ -1065,7 +1060,7 @@ def da_optimization_robust(case_name: str, case_inp: dict, grid_inp: dict, meas_
             prob_da.addConstr(
                 conpoint_q_da_en[f, t] == sum(line_q_t[n1, n2, t] * conpoint_inc_mat[f, n1] for n1, n2 in line_set))
             # first line of (34a)
-            prob_da.addConstr(obj_da_market[f, t] == -lambda_p_da_en[t] * conpoint_p_da_en[f, t]
+            prob_da.addConstr(obj_da_market[f, t] == - lambda_p_da_en[t] * conpoint_p_da_en[f, t]
                               - lambda_q_da_en[t] * conpoint_q_da_en[f, t]
                               + lambda_p_da_rs_pos[t] * conpoint_p_da_rs_pos[f, t]
                               + lambda_p_da_rs_neg[t] * conpoint_p_da_rs_neg[f, t]
@@ -1546,6 +1541,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
     conpoint_q_dev_pos = prob_da.addVars(conpoint_set, time_set, scen_omega_set, lb=0, ub=big_m)
     conpoint_q_dev_neg = prob_da.addVars(conpoint_set, time_set, scen_omega_set, lb=0, ub=big_m)
     obj_da_market = prob_da.addVars(conpoint_set, time_set)
+    obj_da_market2 = prob_da.addVars(conpoint_set, time_set)
     obj_loss = prob_da.addVars(line_set, time_set, scen_omega_set)
     for t, om in itertools.product(time_set, scen_omega_set):
         for nn in node_set:
@@ -1739,7 +1735,8 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
                               + lambda_p_da_rs_pos[t] * conpoint_p_da_rs_pos[f, t]
                               + lambda_p_da_rs_neg[t] * conpoint_p_da_rs_neg[f, t]
                               + lambda_q_da_rs_pos[t] * conpoint_q_da_rs_pos[f, t]
-                              + lambda_q_da_rs_neg[t] * conpoint_q_da_rs_neg[f, t]
+                              + lambda_q_da_rs_neg[t] * conpoint_q_da_rs_neg[f, t])
+            prob_da.addConstr(obj_da_market2[f, t] == obj_da_market[f, t]
                               - max([lambda_p_da_en[t], lambda_q_da_en[t], lambda_p_da_rs_pos[t], lambda_p_da_rs_neg[t],
                                      lambda_q_da_rs_pos[t], lambda_q_da_rs_neg[t]]) * 10
                               * sum(conpoint_p_dev_pos[f, t, om] + conpoint_p_dev_neg[f, t, om]
@@ -1765,7 +1762,7 @@ def da_optimization(case_name: str, case_inp: dict, grid_inp: dict, meas_inp: di
             prob_da.addConstr(
                 obj_loss[n1, n2, t, om] >= sum(line_zre[n1, n2] * line_f[n1, n2, t, om] for n1, n2 in line_set))
     if loss_consideration == 0:
-        prob_da.setObjective(deltat * obj_da_market.sum() - 0.1 * (line_rel1.sum() + line_rel2.sum()), GRB.MAXIMIZE)
+        prob_da.setObjective(deltat * obj_da_market2.sum() - 0.1 * (line_rel1.sum() + line_rel2.sum()), GRB.MAXIMIZE)
     else:
         prob_da.setObjective(obj_loss.sum(), GRB.MINIMIZE)
     prob_da.Params.BarHomogeneous = 1

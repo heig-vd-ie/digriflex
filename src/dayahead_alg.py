@@ -416,11 +416,15 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     result_price[4][:] = 0.5 * result_price[4][:]
     result_price[5][:] = 0.5 * result_price[5][:]
     grid_inp = grid_topology_sim(network_name, [])
-    with open(r".cache/output/tmp_da.pickle", "wb") as file_to_store:
+    if not os.path.exists(".cache"):
+        os.mkdir(".cache")
+    if not os.path.exists(".cache/outputs"):
+        os.mkdir(".cache/outputs")
+    with open(r".cache/outputs/tmp_da.pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, result_v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price,
                      robust_par), file_to_store)
     tomorrow = date + timedelta(days=1)
-    with open(r".cache/output/for" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
+    with open(r".cache/outputs/for" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, result_v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price,
                      robust_par), file_to_store)
     os.system(python64_path +
@@ -431,21 +435,21 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
               'import pickle;' +
               'from datetime import datetime;' +
               'from src.optimization_prob import *;' +
-              'file_to_read = open(r\'.cache/output/tmp_da.pickle\', \'rb\');' +
+              'file_to_read = open(r\'.cache/outputs/tmp_da.pickle\', \'rb\');' +
               '(grid_inp, v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price, robust_par) = ' +
               'pickle.load(file_to_read);' +
               'file_to_read.close();' +
               'p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj = ' +
               'da_opt_digriflex(grid_inp, v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price, ' +
               'robust_par);' +
-              'file_to_store = open(r\'.cache/output/tmp_da.pickle\', \'wb\');' +
+              'file_to_store = open(r\'.cache/outputs/tmp_da.pickle\', \'wb\');' +
               'pickle.dump((p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj), file_to_store);' +
               'file_to_store.close()\"'
               )
-    with open(r".cache/output/tmp_da.pickle", "rb") as file_to_read:
+    with open(r".cache/outputs/tmp_da.pickle", "rb") as file_to_read:
         p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj = pickle.load(file_to_read)
-    if (not os.path.isfile(r".cache/output/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle")) or (obj != 0):
-        with open(r".cache/output/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
+    if (not os.path.isfile(r".cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle")) or (obj != 0):
+        with open(r".cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
             pickle.dump((p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj), file_to_store)
     return obj, True
 

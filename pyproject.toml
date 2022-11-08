@@ -19,6 +19,8 @@ tqdm = "^4.64.1"
 rpy2 = "^3.5.5"
 mysql-connector-python = "^8.0.31"
 python-dotenv = "^0.21.0"
+plotly = "5.3.1"
+orca = "^1.8"
 
 [tool.poetry.dev-dependencies]
 

@@ -676,6 +676,10 @@ def figuring(grid_inp: plt.plot, meas_inp: dict, meas: dict, fig_type: str, titl
     @param title: title of the figure
     @return: figure
     """
+    if not os.path.exists(".cache"):
+        os.mkdir(".cache")
+    if not os.path.exists(".cache/figures"):
+        os.mkdir(".cache/figures")
     w, h = 10, 4
     plt.style.use('bmh')
     plt.set_loglevel('WARNING')
