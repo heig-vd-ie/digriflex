@@ -9,6 +9,8 @@ from sklearn.ensemble import RandomForestRegressor
 import coloredlogs
 import logging
 import matplotlib.pyplot as plt
+import plotly
+import plotly.express as px
 import numpy as np
 import os
 import pandas as pd
@@ -18,6 +20,7 @@ import questionary
 import rpy2.robjects as ro
 import scipy.stats as ss
 import tqdm
+import plotly.io as pio
 
 
 # Global variables
@@ -33,6 +36,7 @@ plt.rcParams["font.family"] = "Arial"
 plt.rcParams["grid.color"] = "k"
 plt.rcParams["grid.linestyle"] = "--"
 plt.rcParams["grid.linewidth"] = 0.5
+pio.kaleido.scope.mathjax = None
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -135,6 +139,42 @@ def transition_matrix(tran: list, n_dig: int):
     return m1
 
 
+def forecasting0(data0: list, name: str):
+    """
+    @description: This function is for forecasting the PV power
+    @param data0: time series of the PV power
+    @param name: name of the data
+    @return vec_out: forecasted PV power
+    """
+    data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
+    output = data0[0:3, :]
+    df = pd.DataFrame(np.transpose(output), columns=["Day -1", "Day -2", "Day -3"])
+    fig = px.line(df, y=df.columns)
+    fig['layout']["template"] = "ggplot2"
+    fig['layout']["font"] = {
+        "family": "Nunito",
+        "size": 22,
+    }
+    fig['layout']["width"] = 1000
+    fig['layout']["height"] = 800
+    fig['layout']["legend"] = dict(x=0, y=.5, traceorder="normal")
+    fig['layout']['xaxis']['title'] = 'time period'
+    fig['layout']['yaxis']['title'] = name
+    fig['layout']["title"] = "NoClustering"
+    plotly.io.write_image(fig, '.cache/figures/f0_' + name + '.pdf', format="pdf")
+    avg = np.average(output, axis=1)
+    rank = ss.rankdata(avg)
+    f_i = np.where(rank == 2)
+    forecast = output[f_i[0], :]
+    err_p = np.max(output, axis=0) - forecast
+    err_n = forecast - np.min(output, axis=0)
+    vec_out = np.zeros((3, 144))
+    vec_out[0, :] = forecast
+    vec_out[1, :] = err_p
+    vec_out[2, :] = err_n
+    return vec_out
+
+
 def forecasting1(data0: list, name: str):
     """
     @description: This function is for forecasting the PV power
@@ -145,11 +185,20 @@ def forecasting1(data0: list, name: str):
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
     model = KMeans(n_clusters=3, random_state=0).fit(data0)
     output = model.cluster_centers_
-    plt.plot(np.transpose(output))
-    plt.legend(['Scenario 1', 'Scenario 2', 'Scenario 3'], fontsize=18)
-    plt.ylabel(name, fontsize=18)
-    plt.savefig('.cache/figures/f1_' + name + '.pdf', bbox_inches='tight')
-    plt.close()
+    df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 3"])
+    fig = px.line(df, y=df.columns)
+    fig['layout']["template"] = "ggplot2"
+    fig['layout']["font"] = {
+        "family": "Nunito",
+        "size": 22,
+    }
+    fig['layout']["width"] = 1000
+    fig['layout']["height"] = 800
+    fig['layout']["legend"] = dict(x=0, y=.5, traceorder="normal")
+    fig['layout']['xaxis']['title'] = 'time period'
+    fig['layout']['yaxis']['title'] = name
+    fig['layout']["title"] = "Benchmark 1"
+    plotly.io.write_image(fig, '.cache/figures/f1_' + name + '.pdf', format="pdf")
     avg = np.average(output, axis=1)
     rank = ss.rankdata(avg)
     f_i = np.where(rank == 2)
@@ -193,11 +242,20 @@ def forecasting2(data0: list, name: str, previous_days: int):
     output = model.cluster_centers_
     output = np.delete(output, model.predict(np.transpose(y_pred)), 0)
     output = np.append(output, np.transpose(y_pred), axis=0)
-    plt.plot(np.transpose(output))
-    plt.legend(['Scenario 1', 'Scenario 2', 'Scenario 3'], fontsize=18)
-    plt.ylabel(name, fontsize=18)
-    plt.savefig('.cache/figures/f2_' + name + '.pdf', bbox_inches='tight')
-    plt.close()
+    df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 4"])
+    fig = px.line(df, y=df.columns)
+    fig['layout']["template"] = "ggplot2"
+    fig['layout']["font"] = {
+        "family": "Nunito",
+        "size": 22,
+    }
+    fig['layout']["width"] = 1000
+    fig['layout']["height"] = 800
+    fig['layout']["legend"] = dict(x=0, y=.5, traceorder="normal")
+    fig['layout']['xaxis']['title'] = 'time period'
+    fig['layout']['yaxis']['title'] = name
+    fig['layout']["title"] = "Benchmark 2"
+    plotly.io.write_image(fig, '.cache/figures/f2_' + name + '.pdf', format="pdf")
     err_p = np.max(output, axis=0) - np.transpose(y_pred)
     err_n = np.transpose(y_pred) - np.min(output, axis=0)
     vec_out = np.zeros((3, 144))
@@ -216,10 +274,25 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     @return vec_out: forecasted PV power
     """
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
-    plt.plot(np.transpose(data0))
-    plt.ylabel(name, fontsize=18)
-    plt.savefig(r'.cache/figures/f3' + name + '_scen.pdf', bbox_inches='tight')
-    plt.close()
+
+    df = pd.DataFrame(np.transpose(data0))
+    fig = px.line(df, y=df.columns[1:])
+    fig.update_traces(line_color='#808080', opacity=0.4)
+    fig.add_scatter(y=df.iloc[:, 0], mode="lines", line_color="black", line_width=3)
+
+    fig['layout']["template"] = "ggplot2"
+    fig['layout']["font"] = {
+        "family": "Nunito",
+        "size": 22,
+    }
+    fig['layout']["width"] = 1000
+    fig['layout']["height"] = 800
+    fig['layout']["showlegend"] = False
+    fig['layout']['xaxis']['title'] = 'time period'
+    fig['layout']['yaxis']['title'] = name
+    fig['layout']["title"] = "NoClustering"
+    plotly.io.write_image(fig, '.cache/figures/f3_' + name + '_scen.pdf', format="pdf")
+
     data1 = np.resize(data0, (previous_days * 144, 1))
     data = pd.DataFrame(data1, columns=['output'])
     for tt in range(144, 184):
@@ -249,6 +322,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     tm = transition_matrix(transitions, digit)
     fig, ax = plt.subplots()
     ax.imshow(tm)
+    plt.title(name)
     plt.savefig(r'.cache/figures/im' + name + '.pdf', bbox_inches='tight')
     plt.close()
     mc = qe.MarkovChain(tm)
@@ -264,22 +338,43 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
             initial_state = digit / 2
         x = mc.simulate(init=int(initial_state), ts_length=144) / (np.sqrt(np.size(tm))-1)
         y_scen[s, :] = np.multiply(x, l_ind) + b
-    plt.plot(np.transpose(data0[0, :]))
-    plt.plot(np.transpose(y_scen[1, :]))
-    plt.legend(['Real data of yesterday', 'a scenario based on Markov Chain'], fontsize=18)
-    plt.ylabel(name, fontsize=18)
-    plt.savefig(r'.cache/figures/m3' + name + '_scen.pdf', bbox_inches='tight')
-    plt.close()
+
+    df = pd.DataFrame(np.array([data0[0, :].tolist(), y_scen[1, :].tolist()]).T,
+                      columns=['Real data of yesterday', 'a scenario based on Markov Chain'])
+    fig = px.line(df, y=df.columns)
+    fig['layout']["template"] = "ggplot2"
+    fig['layout']["font"] = {
+        "family": "Nunito",
+        "size": 22,
+    }
+    fig['layout']["width"] = 1000
+    fig['layout']["height"] = 800
+    fig['layout']["legend"] = dict(x=0, y=.5, traceorder="normal")
+    fig['layout']['xaxis']['title'] = 'time period'
+    fig['layout']['yaxis']['title'] = name
+    plotly.io.write_image(fig, '.cache/figures/m3_' + name + '_scen.pdf', format="pdf")
+
     model = KMeans(n_clusters=3, random_state=0).fit(y_scen)
     output = model.cluster_centers_
     del_ind = model.predict(np.resize(y_pred0, (1, 144)))
     output = np.delete(output, del_ind, 0)
     output = np.append(output, np.resize(y_pred0, (1, 144)), axis=0)
-    plt.plot(np.transpose(output))
-    plt.legend(['Scenario 1', 'Scenario 2', 'Scenario 3'], fontsize=18)
-    plt.ylabel(name, fontsize=18)
-    plt.savefig(r'.cache/figures/f3_' + name + '.pdf', bbox_inches='tight')
-    plt.close()
+
+    df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 3"])
+    fig = px.line(df, y=df.columns)
+    fig['layout']["template"] = "ggplot2"
+    fig['layout']["font"] = {
+        "family": "Nunito",
+        "size": 22,
+    }
+    fig['layout']["width"] = 1000
+    fig['layout']["height"] = 800
+    fig['layout']["legend"] = dict(x=0, y=.5, traceorder="normal")
+    fig['layout']['xaxis']['title'] = 'time period'
+    fig['layout']['yaxis']['title'] = name
+    fig['layout']["title"] = "Markov Chain"
+    plotly.io.write_image(fig, '.cache/figures/f3_' + name + '.pdf', format="pdf")
+
     err_p = np.max(output, axis=0) - y_pred0
     err_n = y_pred0 - np.min(output, axis=0)
     vec_out = np.zeros((3, 144))
@@ -300,8 +395,12 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     """
     fac_p, fac_q = 0.1, 0.1
     n_boot = 10
-    mode_for = "r" if mode_forecast == "BayesBoot" else "b1" if mode_forecast == "Clustering" else "b2" \
-        if mode_forecast == "ARIMA" else "mc" if mode_forecast == "MarkovChain" else None
+    mode_for = "b0" if mode_forecast == "NoClustering" \
+        else "r" if mode_forecast == "BayesBoot" \
+        else "b1" if mode_forecast == "Clustering" \
+        else "b2" if mode_forecast == "ARIMA" \
+        else "mc" if mode_forecast == "MarkovChain" \
+        else None
     data_rt = access_data_rt(year=date.year, month=date.month, day=date.day)
     t_now = data_rt.index[-1]
     t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
@@ -335,7 +434,27 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     pdem_pred_da = list(map(list, zip(*pdem_pred_da)))
     qdem_pred_da = pdem_pred_da
     log.info("Start to calculate the day-ahead power production of DiGriFlex.")
-    if mode_for == 'r':
+    if mode_for == 'b0':
+        with tqdm.tqdm(total=5, desc="Forecasting") as pbar:
+            dd = previous_days
+            t_end = data_rt.index[-1].floor('1d')
+            t_from = t_end - timedelta(days=dd) + timedelta(minutes=10)
+            pbar.update()
+            pv_pred_da = np.resize(data_rt['P'][t_from:t_end].to_numpy(), (dd, 144)) / 1000
+            pdem_pred_da = np.resize(data_rt['Pdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
+            qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
+            pbar.update()
+            pbar.set_description("Forecasting PV")
+            result_p_pv = forecasting0(data0=pv_pred_da, name='PV power production (kW)')
+            pbar.update()
+            pbar.set_description("Forecasting Pdem")
+            result_p_dm = forecasting0(data0=pdem_pred_da, name='Demand active power (kW)')
+            pbar.update()
+            pbar.set_description("Forecasting Qdem")
+            result_q_dm = forecasting0(data0=qdem_pred_da, name='Demand reactive power (kVar)')
+            pbar.update()
+            pbar.set_description("Forecasting")
+    elif mode_for == 'r':
         result_p_pv, result_irr = forecasting_pv_da(pred_for=irra_pred_da, n_boot=n_boot)
         result_p_dm = forecasting_active_power_da(pred_for=pdem_pred_da, fac_p=fac_p, n_boot=n_boot)
         result_q_dm = forecasting_reactive_power_da(pred_for=qdem_pred_da, fac_q=fac_q, n_boot=n_boot)
