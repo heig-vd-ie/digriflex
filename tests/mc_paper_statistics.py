@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 if __name__ == '__main__':
+    # boxplot of cases deviation and objective
     pio.kaleido.scope.mathjax = None
     case = ['NoClustering', 'Benchmark 1', 'Benchmark 2', 'Markov Chain']
     x0 = [6.670, 10.236, 6.743, 7.271, 3.463, 11.389, 3.473, 13.681, 0.070, 0.165, 3.360, 0.102]
@@ -27,7 +28,6 @@ if __name__ == '__main__':
     df["Deviation"] = df["Deviation"].astype("float64")
     df["Objective"] = df["Objective"].astype("float64")
 
-    # fig = px.scatter(df, x="Deviation", y="Objective", color="Case", marginal_x="box", marginal_y="box")
     fig = make_subplots(rows=1, cols=2)
     fig.add_trace(go.Box(x=df["Case"].tolist(), y=df["Objective"].tolist(), fillcolor="darkgrey", marker_color="black"),
                   row=1, col=1)
@@ -46,4 +46,30 @@ if __name__ == '__main__':
     fig['layout']["height"] = 500
     fig['layout']["showlegend"] = False
     plotly.io.write_image(fig, ".cache/figures/fig_statistics_analysis1.pdf", format="pdf")
+    # fig.show()
+
+    # plot inertia for different number of clusters
+    names_order = ["cluster_number", "inertia_pv", "inertia_demand_p", "inertia_demand_q"]
+    n_clusters = [1, 2, 3, 4, 5]
+    z1 = [2536.46, 1581.97, 1367.62, 1168.06, 1116.5]
+    z2 = [3608.10, 1497.36, 1211.27, 1037.34, 989.18]
+    z3 = [459.82, 363.75, 320.11, 291.51, 285.51]
+
+    df = pd.DataFrame(np.array([n_clusters, z1, z2, z3]).T, columns=names_order)
+    for name in names_order:
+        df[name] = df[name].astype("float64")
+    df["inertia"] = df["inertia_pv"] + df["inertia_demand_p"] + df["inertia_demand_q"]
+    fig = make_subplots(rows=1, cols=1)
+    fig.add_trace(go.Line(x=df["cluster_number"].tolist(), y=df["inertia"].tolist()), row=1, col=1)
+    fig['layout']['xaxis']['title'] = 'number of clusters'
+    fig['layout']['yaxis']['title'] = 'Inertia'
+    fig['layout']['showlegend'] = False
+    fig['layout']["template"] = "simple_white"
+    fig['layout']["font"] = {
+        "family": "Nunito",
+        "size": 14,
+    }
+    fig['layout']["width"] = 500
+    fig['layout']["height"] = 500
+    plotly.io.write_image(fig, ".cache/figures/inertia.pdf", format="pdf")
     fig.show()

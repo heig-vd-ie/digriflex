@@ -6,6 +6,7 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import silhouette_score
 import coloredlogs
 import logging
 import matplotlib.pyplot as plt
@@ -153,7 +154,7 @@ def forecasting0(data0: list, name: str):
     fig['layout']["template"] = "ggplot2"
     fig['layout']["font"] = {
         "family": "Nunito",
-        "size": 22,
+        "size": 26,
     }
     fig['layout']["width"] = 1000
     fig['layout']["height"] = 800
@@ -185,12 +186,16 @@ def forecasting1(data0: list, name: str):
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
     model = KMeans(n_clusters=3, random_state=0).fit(data0)
     output = model.cluster_centers_
+    # log.info("\ninertia is {}".format(model.inertia_))
+    labels = model.predict(np.concatenate([data0, output]))
+    # log.info("\ninertia is {}".format(model.inertia_))
+    score = silhouette_score(np.concatenate([data0, output]), labels, metric='euclidean')
     df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 3"])
     fig = px.line(df, y=df.columns)
     fig['layout']["template"] = "ggplot2"
     fig['layout']["font"] = {
         "family": "Nunito",
-        "size": 22,
+        "size": 26,
     }
     fig['layout']["width"] = 1000
     fig['layout']["height"] = 800
@@ -198,6 +203,10 @@ def forecasting1(data0: list, name: str):
     fig['layout']['xaxis']['title'] = 'time period'
     fig['layout']['yaxis']['title'] = name
     fig['layout']["title"] = "Benchmark 1"
+    fig.add_annotation(x=30, y=df.max().max(),
+                       text="Silhouette score = %.4f" % score,
+                       showarrow=False,
+                       yshift=10)
     plotly.io.write_image(fig, '.cache/figures/f1_' + name + '.pdf', format="pdf")
     avg = np.average(output, axis=1)
     rank = ss.rankdata(avg)
@@ -221,17 +230,18 @@ def forecasting2(data0: list, name: str, previous_days: int):
     @return vec_out: forecasted PV power
     """
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
+
     dd = previous_days
-    data0 = np.resize(data0, (dd * 144, 1))
-    m_list = data0[288:]
-    f_arr = np.transpose(np.resize(np.array([data0[144:dd * 144 - 144].tolist(), data0[:dd * 144 - 288].tolist()]),
+    data1 = np.resize(data0, (dd * 144, 1))
+    m_list = data1[288:]
+    f_arr = np.transpose(np.resize(np.array([data1[144:dd * 144 - 144].tolist(), data1[:dd * 144 - 288].tolist()]),
                                    (2, (dd - 2) * 144)))
     theta = np.matmul(np.linalg.inv(np.matmul(np.transpose(f_arr), f_arr)), np.matmul(np.transpose(f_arr), m_list))
     error = np.resize(m_list - np.matmul(f_arr, theta), (dd - 2, 144))
     var_m = np.zeros((144, 1))
     for tt in range(144):
         var_m[tt] = np.std(error[:, tt])
-    f_arr = np.transpose(np.resize(np.array([data0[dd * 144 - 144:].tolist(), data0[dd * 144 - 288:dd * 144 - 144]
+    f_arr = np.transpose(np.resize(np.array([data1[dd * 144 - 144:].tolist(), data1[dd * 144 - 288:dd * 144 - 144]
                                             .tolist()]), (2, 144)))
     y_pred = np.matmul(f_arr, theta)
     y_scenario = np.zeros((100, 144))
@@ -242,12 +252,15 @@ def forecasting2(data0: list, name: str, previous_days: int):
     output = model.cluster_centers_
     output = np.delete(output, model.predict(np.transpose(y_pred)), 0)
     output = np.append(output, np.transpose(y_pred), axis=0)
-    df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 4"])
+    labels = model.predict(np.concatenate([data0, output]))
+    # log.info("\ninertia is {}".format(model.inertia_))
+    score = silhouette_score(np.concatenate([data0, output]), labels, metric='euclidean')
+    df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 3"])
     fig = px.line(df, y=df.columns)
     fig['layout']["template"] = "ggplot2"
     fig['layout']["font"] = {
         "family": "Nunito",
-        "size": 22,
+        "size": 26,
     }
     fig['layout']["width"] = 1000
     fig['layout']["height"] = 800
@@ -255,6 +268,10 @@ def forecasting2(data0: list, name: str, previous_days: int):
     fig['layout']['xaxis']['title'] = 'time period'
     fig['layout']['yaxis']['title'] = name
     fig['layout']["title"] = "Benchmark 2"
+    fig.add_annotation(x=30, y=df.max().max(),
+                       text="Silhouette score = %.4f" % score,
+                       showarrow=False,
+                       yshift=10)
     plotly.io.write_image(fig, '.cache/figures/f2_' + name + '.pdf', format="pdf")
     err_p = np.max(output, axis=0) - np.transpose(y_pred)
     err_n = np.transpose(y_pred) - np.min(output, axis=0)
@@ -283,7 +300,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     fig['layout']["template"] = "ggplot2"
     fig['layout']["font"] = {
         "family": "Nunito",
-        "size": 22,
+        "size": 26,
     }
     fig['layout']["width"] = 1000
     fig['layout']["height"] = 800
@@ -308,6 +325,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     y_pred = y_pred * std + mean
     y_pred0 = y_pred[-144:]
     model = KMeans(n_clusters=3, random_state=0).fit(data0)
+    # log.info("\ninertia is {}".format(model.inertia_))
     ind = model.predict(np.resize(y_pred0, (1, 144)))
     ind2 = model.predict(data0)
     y = np.transpose(data0[ind2 == ind])
@@ -345,7 +363,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     fig['layout']["template"] = "ggplot2"
     fig['layout']["font"] = {
         "family": "Nunito",
-        "size": 22,
+        "size": 26,
     }
     fig['layout']["width"] = 1000
     fig['layout']["height"] = 800
@@ -359,13 +377,15 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     del_ind = model.predict(np.resize(y_pred0, (1, 144)))
     output = np.delete(output, del_ind, 0)
     output = np.append(output, np.resize(y_pred0, (1, 144)), axis=0)
+    labels = model.predict(np.concatenate([data0, output]))
+    score = silhouette_score(np.concatenate([data0, output]), labels, metric='euclidean')
 
     df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 3"])
     fig = px.line(df, y=df.columns)
     fig['layout']["template"] = "ggplot2"
     fig['layout']["font"] = {
         "family": "Nunito",
-        "size": 22,
+        "size": 26,
     }
     fig['layout']["width"] = 1000
     fig['layout']["height"] = 800
@@ -373,6 +393,10 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     fig['layout']['xaxis']['title'] = 'time period'
     fig['layout']['yaxis']['title'] = name
     fig['layout']["title"] = "Markov Chain"
+    fig.add_annotation(x=30, y=df.max().max(),
+                       text="Silhouette score = %.4f" % score,
+                       showarrow=False,
+                       yshift=10)
     plotly.io.write_image(fig, '.cache/figures/f3_' + name + '.pdf', format="pdf")
 
     err_p = np.max(output, axis=0) - y_pred0
@@ -401,6 +425,18 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
         else "b2" if mode_forecast == "ARIMA" \
         else "mc" if mode_forecast == "MarkovChain" \
         else None
+    real_data = access_data_rt(year=date.year, month=date.month, day=date.day + 1)
+    t_now = real_data.index[-1]
+    t_end = real_data.index[-1].floor('1d') - timedelta(hours=1)
+    t_end_y = t_end - timedelta(minutes=10)
+    t_now_y = real_data.index[-1] - timedelta(days=1) + timedelta(minutes=10)
+    irra_real_data = [list(real_data['irra'][t_end:t_now]) + list(real_data['irra'][t_now_y:t_end_y])]
+    irra_real_data = list(map(list, zip(*irra_real_data)))
+    pdem_real_data = [list(real_data['Pdem'][t_end:t_now]) + list(real_data['Pdem'][t_now_y:t_end_y])]
+    pdem_real_data = list(map(list, zip(*pdem_real_data)))
+    qdem_real_data = [list(real_data['Qdem'][t_end:t_now]) + list(real_data['Qdem'][t_now_y:t_end_y])]
+    qdem_real_data = list(map(list, zip(*qdem_real_data)))
+
     data_rt = access_data_rt(year=date.year, month=date.month, day=date.day)
     t_now = data_rt.index[-1]
     t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
@@ -524,6 +560,27 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
         result_p_pv = None
         result_p_dm = None
         result_q_dm = None
+    pv_real_data = np.array(irra_real_data)[0:144].T * 6.21 / 1000
+    pdem_real_data = np.array(pdem_real_data)[0:144].T / 10
+    qdem_real_data = np.array(qdem_real_data)[0:144].T / 10
+    error_pv = np.sqrt(sum(sum(abs(result_p_pv[0, :] - pv_real_data) ** 2)) / sum(abs(result_p_pv[0, :]) ** 2))
+    error_p_dm = np.sqrt(sum(sum(abs(result_p_dm[0, :] - pdem_real_data) ** 2)) / sum(abs(result_p_dm[0, :]) ** 2))
+    error_q_dm = np.sqrt(sum(sum(abs(result_q_dm[0, :] - qdem_real_data) ** 2)) / sum(abs(result_q_dm[0, :]) ** 2))
+
+    error_pos_pv = sum(sum(pv_real_data - result_p_pv[0, :] - result_p_pv[1, :] > 0.5)) / 144
+    error_pos_pdm = sum(sum(pdem_real_data - result_p_dm[0, :] - result_p_dm[1, :] > 0.5)) / 144
+    error_pos_qdm = sum(sum(qdem_real_data - result_q_dm[0, :] - result_q_dm[1, :] > 0.5)) / 144
+
+    error_neg_pv = sum(sum(result_p_pv[0, :] - result_p_pv[2, :] - pv_real_data > 0.1)) / 144
+    error_neg_pdm = sum(sum(result_p_dm[0, :] - result_p_dm[2, :] - pdem_real_data > 0.2)) / 144
+    error_neg_qdm = sum(sum(result_q_dm[0, :] - result_q_dm[2, :] - qdem_real_data > 0.1)) / 144
+    log.info("Error of pv forecast {}%.".format(error_pv * 100))
+    log.info("Error of p_dem forecast {}%.".format(error_p_dm * 100))
+    log.info("Error of q_dem forecast {}%.".format(error_q_dm * 100))
+    log.info("Deviation from the range of forecast of pv is {}%.".format((error_pos_pv + error_neg_pv) * 100))
+    log.info("Deviation from the range of forecast of p_dem is {}%.".format((error_pos_pdm + error_neg_pdm) * 100))
+    log.info("Deviation from the range of forecast of q_dem is {}%.".format((error_pos_qdm + error_neg_qdm) * 100))
+
     result_p_pv = np.maximum(np.zeros((3, 144)), result_p_pv)
     result_v_mag = 0.03 * np.ones((2, 144))
     result_soc = [50, 0.75, 0.75]
