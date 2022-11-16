@@ -791,14 +791,22 @@ def figuring(grid_inp: plt.plot, meas_inp: dict, meas: dict, fig_type: str, titl
                                                label='$q_{t}^{(DA)}$', linewidth=2, linestyle='-')
         figure["ax_" + str(fig_n) + "_2"].set_xlabel("time", fontsize=18)
         figure["ax_" + str(fig_n) + "_2"].set_ylabel("Reactive power (kVAR)", fontsize=18)
-        figure["ax_" + str(fig_n) + "_1"].plot(x_lab, meas["DA_P+"][0:(meas_inp["Nt"])],
-                                               label='$p_{t}^{(DA)}+r_t^{(p\u2191)}$', linewidth=2, linestyle='--')
-        figure["ax_" + str(fig_n) + "_2"].plot(x_lab, meas["DA_Q+"][0:(meas_inp["Nt"])],
-                                               label='$q_{t}^{(DA)}+r_t^{(q\u2191)}$', linewidth=2, linestyle='--')
-        figure["ax_" + str(fig_n) + "_1"].plot(x_lab, meas["DA_P-"][0:(meas_inp["Nt"])],
-                                               label='$p_{t}^{(DA)}-r_t^{(p\u2193)}$', linewidth=2, linestyle=':')
-        figure["ax_" + str(fig_n) + "_2"].plot(x_lab, meas["DA_Q-"][0:(meas_inp["Nt"])],
-                                               label='$q_{t}^{(DA)}-r_t^{(q\u2193)}$', linewidth=2, linestyle=':')
+        figure["ax_" + str(fig_n) + "_1"]\
+            .fill_between(x_lab, meas["DA_P+"][0:(meas_inp["Nt"])], meas["DA_PP"][0:(meas_inp["Nt"])],
+                          where=(meas["DA_P+"][0:(meas_inp["Nt"])] > meas["DA_PP"][0:(meas_inp["Nt"])]),
+                          color="green", alpha=0.25, label='$p_{t}^{(DA)}+r_t^{(p\u2191)}$')
+        figure["ax_" + str(fig_n) + "_2"]\
+            .fill_between(x_lab, meas["DA_Q+"][0:(meas_inp["Nt"])], meas["DA_QQ"][0:(meas_inp["Nt"])],
+                          where=(meas["DA_Q+"][0:(meas_inp["Nt"])] > meas["DA_QQ"][0:(meas_inp["Nt"])]),
+                          color="green", alpha=0.25, label='$q_{t}^{(DA)}+r_t^{(q\u2191)}$')
+        figure["ax_" + str(fig_n) + "_1"]\
+            .fill_between(x_lab, meas["DA_P-"][0:(meas_inp["Nt"])], meas["DA_PP"][0:(meas_inp["Nt"])],
+                          where=(meas["DA_P-"][0:(meas_inp["Nt"])] < meas["DA_PP"][0:(meas_inp["Nt"])]),
+                          color="red", alpha=0.25, label='$p_{t}^{(DA)}-r_t^{(p\u2193)}$')
+        figure["ax_" + str(fig_n) + "_2"]\
+            .fill_between(x_lab, meas["DA_Q-"][0:(meas_inp["Nt"])], meas["DA_QQ"][0:(meas_inp["Nt"])],
+                          where=(meas["DA_Q-"][0:(meas_inp["Nt"])] < meas["DA_QQ"][0:(meas_inp["Nt"])]),
+                          color="red", alpha=0.25, label='$q_{t}^{(DA)}-r_t^{(q\u2193)}$')
         figure["ax_" + str(fig_n) + "_1"].legend(fontsize=18, ncol=3, loc='upper center', bbox_to_anchor=(0.5, 1.29))
         figure["ax_" + str(fig_n) + "_2"].legend(fontsize=18, ncol=3, loc='upper center', bbox_to_anchor=(0.5, 1.29))
         # Figure["ax_" + str(fig_n) + "_2"].legend().set_visible(False)

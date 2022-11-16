@@ -35,7 +35,7 @@ if __name__ == '__main__':
                   row=1, col=2)
     fig['layout']['xaxis']['title'] = ''
     fig['layout']['xaxis2']['title'] = ''
-    fig['layout']['yaxis']['title'] = 'Objective ($)'
+    fig['layout']['yaxis']['title'] = 'Objective (CHF)'
     fig['layout']['yaxis2']['title'] = 'Deviation (%)'
     fig['layout']["template"] = "ggplot2"
     fig['layout']["font"] = {

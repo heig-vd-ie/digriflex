@@ -1,6 +1,7 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
 from auxiliary import grid_topology_sim
 from datetime import datetime, timedelta
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from realtime_alg import access_data_rt
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
@@ -282,16 +283,17 @@ def forecasting2(data0: list, name: str, previous_days: int):
     return vec_out
 
 
-def forecasting3(data0: np.array, name: str, previous_days: int):
+def forecasting3(data0: np.array, name: str, previous_days: int, data_today: np.array):
     """
     @description: This function is for forecasting the PV power
     @param data0: time series of the PV power
     @param name: name of the forecast method
     @param previous_days: number of previous days
+    @param data_today: data of today
     @return vec_out: forecasted PV power
     """
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
-
+    data_today = np.nan_to_num(data_today, nan=0, posinf=0, neginf=0)
     df = pd.DataFrame(np.transpose(data0))
     fig = px.line(df, y=df.columns[1:])
     fig.update_traces(line_color='#808080', opacity=0.4)
@@ -339,13 +341,21 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     transitions = np.digitize(y2, bins, right=True)
     tm = transition_matrix(transitions, digit)
     fig, ax = plt.subplots()
-    ax.imshow(tm)
+    im = ax.imshow(tm)
+    plt.xticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    plt.yticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    plt.grid()
+    plt.xlabel("state")
+    plt.ylabel("state")
     plt.title(name)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(im, cax=cax)
     plt.savefig(r'.cache/figures/im' + name + '.pdf', bbox_inches='tight')
     plt.close()
     mc = qe.MarkovChain(tm)
-    y_scen = np.zeros((30, 144))
-    for s in range(30):
+    y_scen = np.zeros((100, 144))
+    for s in range(100):
         if name == 'PV power production (kW)':
             l_ind = np.max(y, axis=1) - np.min(y, axis=1)
             b = 0
@@ -356,10 +366,13 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
             initial_state = digit / 2
         x = mc.simulate(init=int(initial_state), ts_length=144) / (np.sqrt(np.size(tm))-1)
         y_scen[s, :] = np.multiply(x, l_ind) + b
+    df = pd.DataFrame(np.array([np.reshape(data_today, -1).tolist()[-144:], y_scen[1, :].tolist()]).T,
+                      columns=['Real data', 'A scenario based on Markov Chain'])
+    df2 = pd.DataFrame(np.array([y_scen[i, :] for i in range(100)]).T)
+    fig = px.line(df2, y=df2.columns[1:])
+    fig.update_traces(line_color='#808080', opacity=0.4)
+    fig.add_scatter(y=df.iloc[:, 0], mode="lines", line_color="red", line_width=3)
 
-    df = pd.DataFrame(np.array([data0[0, :].tolist(), y_scen[1, :].tolist()]).T,
-                      columns=['Real data of yesterday', 'a scenario based on Markov Chain'])
-    fig = px.line(df, y=df.columns)
     fig['layout']["template"] = "ggplot2"
     fig['layout']["font"] = {
         "family": "Nunito",
@@ -367,7 +380,8 @@ def forecasting3(data0: np.array, name: str, previous_days: int):
     }
     fig['layout']["width"] = 1000
     fig['layout']["height"] = 800
-    fig['layout']["legend"] = dict(x=0, y=.5, traceorder="normal")
+    fig['layout']["showlegend"] = False
+    # fig['layout']["legend"] = dict(x=0, y=.5, traceorder="normal")
     fig['layout']['xaxis']['title'] = 'time period'
     fig['layout']['yaxis']['title'] = name
     plotly.io.write_image(fig, '.cache/figures/m3_' + name + '_scen.pdf', format="pdf")
@@ -425,7 +439,8 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
         else "b2" if mode_forecast == "ARIMA" \
         else "mc" if mode_forecast == "MarkovChain" \
         else None
-    real_data = access_data_rt(year=date.year, month=date.month, day=date.day + 1)
+    tomorrow = date + timedelta(days=1)
+    real_data = access_data_rt(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day)
     t_now = real_data.index[-1]
     t_end = real_data.index[-1].floor('1d') - timedelta(hours=1)
     t_end_y = t_end - timedelta(minutes=10)
@@ -436,7 +451,6 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     pdem_real_data = list(map(list, zip(*pdem_real_data)))
     qdem_real_data = [list(real_data['Qdem'][t_end:t_now]) + list(real_data['Qdem'][t_now_y:t_end_y])]
     qdem_real_data = list(map(list, zip(*qdem_real_data)))
-
     data_rt = access_data_rt(year=date.year, month=date.month, day=date.day)
     t_now = data_rt.index[-1]
     t_end = data_rt.index[-1].floor('1d') - timedelta(hours=1)
@@ -470,6 +484,9 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     pdem_pred_da = list(map(list, zip(*pdem_pred_da)))
     qdem_pred_da = pdem_pred_da
     log.info("Start to calculate the day-ahead power production of DiGriFlex.")
+    pv_real_data = np.array(irra_real_data)[0:144].T * 6.21 / 1000
+    pdem_real_data = np.array(pdem_real_data)[0:144].T / 10
+    qdem_real_data = np.array(qdem_real_data)[0:144].T / 10
     if mode_for == 'b0':
         with tqdm.tqdm(total=5, desc="Forecasting") as pbar:
             dd = previous_days
@@ -546,23 +563,23 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
             qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
             pbar.update()
             pbar.set_description("Forecasting PV")
-            result_p_pv = forecasting3(data0=pv_pred_da, name='PV power production (kW)', previous_days=previous_days)
+            result_p_pv = forecasting3(data0=pv_pred_da, name='PV power production (kW)', previous_days=previous_days,
+                                       data_today=pv_real_data)
             pbar.update()
             pbar.set_description("Forecasting Pdem")
-            result_p_dm = forecasting3(data0=pdem_pred_da, name='Demand active power (kW)', previous_days=previous_days)
+            result_p_dm = forecasting3(data0=pdem_pred_da, name='Demand active power (kW)', previous_days=previous_days,
+                                       data_today=pdem_real_data)
             pbar.update()
             pbar.set_description("Forecasting Qdem")
             result_q_dm = forecasting3(data0=qdem_pred_da, name='Demand reactive power (kVar)',
-                                       previous_days=previous_days)
+                                       previous_days=previous_days, data_today=qdem_real_data)
             pbar.update()
             pbar.set_description("Forecasting")
     else:
         result_p_pv = None
         result_p_dm = None
         result_q_dm = None
-    pv_real_data = np.array(irra_real_data)[0:144].T * 6.21 / 1000
-    pdem_real_data = np.array(pdem_real_data)[0:144].T / 10
-    qdem_real_data = np.array(qdem_real_data)[0:144].T / 10
+
     error_pv = np.sqrt(sum(sum(abs(result_p_pv[0, :] - pv_real_data) ** 2)) / sum(abs(result_p_pv[0, :]) ** 2))
     error_p_dm = np.sqrt(sum(sum(abs(result_p_dm[0, :] - pdem_real_data) ** 2)) / sum(abs(result_p_dm[0, :]) ** 2))
     error_q_dm = np.sqrt(sum(sum(abs(result_q_dm[0, :] - qdem_real_data) ** 2)) / sum(abs(result_q_dm[0, :]) ** 2))
@@ -580,7 +597,6 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     log.info("Deviation from the range of forecast of pv is {}%.".format((error_pos_pv + error_neg_pv) * 100))
     log.info("Deviation from the range of forecast of p_dem is {}%.".format((error_pos_pdm + error_neg_pdm) * 100))
     log.info("Deviation from the range of forecast of q_dem is {}%.".format((error_pos_qdm + error_neg_qdm) * 100))
-
     result_p_pv = np.maximum(np.zeros((3, 144)), result_p_pv)
     result_v_mag = 0.03 * np.ones((2, 144))
     result_soc = [50, 0.75, 0.75]
