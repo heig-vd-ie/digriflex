@@ -7,7 +7,8 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import silhouette_score
+from scipy.stats import ttest_ind, norm
+from sklearn.metrics import silhouette_score, mutual_info_score
 import coloredlogs
 import logging
 import matplotlib.pyplot as plt
@@ -140,16 +141,52 @@ def transition_matrix(tran: list, n_dig: int):
         k = k + 1
     return m1
 
+def score_calculation(output, data_today):
+    max_output = np.max(np.max(output))
+    min_output = np.min(np.min(output))
+    err_std = np.average(np.abs(np.array(np.reshape(data_today, -1).tolist()[-144:])))
+    range_number = list(np.arange(min_output, max_output, (max_output-min_output)/100))
+    x1 = np.digitize(np.array(np.reshape(data_today, -1).tolist()[-144:]), range_number).tolist()
+    y1 = np.digitize(output[0, :], range_number).tolist()
+    y2 = np.digitize(output[1, :], range_number).tolist()
+    y3 = np.digitize(output[2, :], range_number).tolist()
+    score1 = mutual_info_score(x1, y1)
+    score2 = mutual_info_score(x1, y2)
+    score3 = mutual_info_score(x1, y3)
+    _, p_value1 = ttest_ind(np.array(np.reshape(data_today, -1).tolist()[-144:]), output[0, :])
+    _, p_value2 = ttest_ind(np.array(np.reshape(data_today, -1).tolist()[-144:]), output[1, :])
+    _, p_value3 = ttest_ind(np.array(np.reshape(data_today, -1).tolist()[-144:]), output[2, :])
+    number_l = 10
+    likelihood1, likelihood2, likelihood3 = np.zeros([number_l, 1]), np.zeros([number_l, 1]), np.zeros([number_l, 1])
+    for i in range(1, number_l+1):
+        likelihood1[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[0, :], 0, err_std * i * 0.01).sum())
+        likelihood2[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[1, :], 0, err_std * i * 0.01).sum())
+        likelihood3[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[2, :], 0, err_std * i * 0.01).sum())
+    with open(".cache/log1.txt", "a") as f:
+        f.write("{}\n".format(score1))
+        f.write("{}\n".format(score2))
+        f.write("{}\n".format(score3))
+    with open(".cache/log2.txt", "a") as f:
+        f.write("{}\n".format(p_value1))
+        f.write("{}\n".format(p_value2))
+        f.write("{}\n".format(p_value3))
+    with open(".cache/log3.txt", "a") as f:
+        f.write("{}\n".format(list(np.arange(err_std * 0.01, err_std * (number_l + 1) * 0.01, 0.01))))
+        f.write("{}\n".format((likelihood1 + likelihood2 + likelihood3) / 3))
 
-def forecasting0(data0: list, name: str):
+
+def forecasting0(data0: list, name: str, data_today):
     """
     @description: This function is for forecasting the PV power
     @param data0: time series of the PV power
     @param name: name of the data
+    @param data_today
     @return vec_out: forecasted PV power
     """
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
     output = data0[0:3, :]
+    score_calculation(output, data_today)
+
     df = pd.DataFrame(np.transpose(output), columns=["Day -1", "Day -2", "Day -3"])
     fig = px.line(df, y=df.columns)
     fig['layout']["template"] = "ggplot2"
@@ -177,20 +214,25 @@ def forecasting0(data0: list, name: str):
     return vec_out
 
 
-def forecasting1(data0: list, name: str):
+def forecasting1(data0: list, name: str, data_today):
     """
     @description: This function is for forecasting the PV power
     @param data0: time series of the PV power
     @param name: name of the data
+    @param data_today
     @return vec_out: forecasted PV power
     """
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
     model = KMeans(n_clusters=3, random_state=0).fit(data0)
     output = model.cluster_centers_
-    # log.info("\ninertia is {}".format(model.inertia_))
+    # log.info("\n inertia is {}".format(model.inertia_))
     labels = model.predict(np.concatenate([data0, output]))
-    # log.info("\ninertia is {}".format(model.inertia_))
+    # log.info("\n inertia is {}".format(model.inertia_))
+
     score = silhouette_score(np.concatenate([data0, output]), labels, metric='euclidean')
+
+    score_calculation(output, data_today)
+
     df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 3"])
     fig = px.line(df, y=df.columns)
     fig['layout']["template"] = "ggplot2"
@@ -222,12 +264,13 @@ def forecasting1(data0: list, name: str):
     return vec_out
 
 
-def forecasting2(data0: list, name: str, previous_days: int):
+def forecasting2(data0: list, name: str, previous_days: int, data_today):
     """
     @description: This function is for forecasting the PV power
     @param data0: time series of the PV power
     @param name: name of the data
     @param previous_days: number of previous days
+    @param data_today
     @return vec_out: forecasted PV power
     """
     data0 = np.nan_to_num(data0, nan=0, posinf=0, neginf=0)
@@ -254,8 +297,12 @@ def forecasting2(data0: list, name: str, previous_days: int):
     output = np.delete(output, model.predict(np.transpose(y_pred)), 0)
     output = np.append(output, np.transpose(y_pred), axis=0)
     labels = model.predict(np.concatenate([data0, output]))
-    # log.info("\ninertia is {}".format(model.inertia_))
+    # log.info("\n inertia is {}".format(model.inertia_))
+
     score = silhouette_score(np.concatenate([data0, output]), labels, metric='euclidean')
+
+    score_calculation(output, data_today)
+
     df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 3"])
     fig = px.line(df, y=df.columns)
     fig['layout']["template"] = "ggplot2"
@@ -394,6 +441,8 @@ def forecasting3(data0: np.array, name: str, previous_days: int, data_today: np.
     labels = model.predict(np.concatenate([data0, output]))
     score = silhouette_score(np.concatenate([data0, output]), labels, metric='euclidean')
 
+    score_calculation(output, data_today)
+
     df = pd.DataFrame(np.transpose(output), columns=["Scenario 1", "Scenario 2", "Scenario 3"])
     fig = px.line(df, y=df.columns)
     fig['layout']["template"] = "ggplot2"
@@ -498,13 +547,14 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
             qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
             pbar.update()
             pbar.set_description("Forecasting PV")
-            result_p_pv = forecasting0(data0=pv_pred_da, name='PV power production (kW)')
+            result_p_pv = forecasting0(data0=pv_pred_da, name='PV power production (kW)', data_today=pv_real_data)
             pbar.update()
             pbar.set_description("Forecasting Pdem")
-            result_p_dm = forecasting0(data0=pdem_pred_da, name='Demand active power (kW)')
+            result_p_dm = forecasting0(data0=pdem_pred_da, name='Demand active power (kW)', data_today=pdem_real_data)
             pbar.update()
             pbar.set_description("Forecasting Qdem")
-            result_q_dm = forecasting0(data0=qdem_pred_da, name='Demand reactive power (kVar)')
+            result_q_dm = forecasting0(data0=qdem_pred_da, name='Demand reactive power (kVar)',
+                                       data_today=qdem_real_data)
             pbar.update()
             pbar.set_description("Forecasting")
     elif mode_for == 'r':
@@ -522,13 +572,14 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
             qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
             pbar.update()
             pbar.set_description("Forecasting PV")
-            result_p_pv = forecasting1(data0=pv_pred_da, name='PV power production (kW)')
+            result_p_pv = forecasting1(data0=pv_pred_da, name='PV power production (kW)', data_today=pv_real_data)
             pbar.update()
             pbar.set_description("Forecasting Pdem")
-            result_p_dm = forecasting1(data0=pdem_pred_da, name='Demand active power (kW)')
+            result_p_dm = forecasting1(data0=pdem_pred_da, name='Demand active power (kW)', data_today=pdem_real_data)
             pbar.update()
             pbar.set_description("Forecasting Qdem")
-            result_q_dm = forecasting1(data0=qdem_pred_da, name='Demand reactive power (kVar)')
+            result_q_dm = forecasting1(data0=qdem_pred_da, name='Demand reactive power (kVar)',
+                                       data_today=qdem_real_data)
             pbar.update()
             pbar.set_description("Forecasting")
     elif mode_for == 'b2':
@@ -542,14 +593,16 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
             qdem_pred_da = np.resize(data_rt['Qdem'][t_from:t_end].to_numpy(), (dd, 144)) / 10
             pbar.update()
             pbar.set_description("Forecasting PV")
-            result_p_pv = forecasting2(data0=pv_pred_da, name='PV power production (kW)', previous_days=previous_days)
+            result_p_pv = forecasting2(data0=pv_pred_da, name='PV power production (kW)', previous_days=previous_days,
+                                       data_today=pv_real_data)
             pbar.update()
             pbar.set_description("Forecasting Pdem")
-            result_p_dm = forecasting2(data0=pdem_pred_da, name='Demand active power (kW)', previous_days=previous_days)
+            result_p_dm = forecasting2(data0=pdem_pred_da, name='Demand active power (kW)', previous_days=previous_days,
+                                       data_today=pdem_real_data)
             pbar.update()
             pbar.set_description("Forecasting Qdem")
             result_q_dm = forecasting2(data0=qdem_pred_da, name='Demand reactive power (kVar)',
-                                       previous_days=previous_days)
+                                       previous_days=previous_days, data_today=qdem_real_data)
             pbar.update()
             pbar.set_description("Forecasting")
     elif mode_for == 'mc':
