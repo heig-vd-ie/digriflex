@@ -1,9 +1,7 @@
-# Path of installed packages
+##### Path of installed packages
 user_name_str <- Sys.info()[[7]]
-current_path <- getwd()
-R_libraries_path <- paste("C:/Users/",user_name_str,"/Documents/R/win-library/4.0", sep="")
-Data_path <- paste(current_path, "/data/", sep="")
-data_tra_name <- "data_tra_irr.RDATA"
+R_libraries_path <- paste("C:/Users/",user_name_str,"/Documents/R/win-library/4.1", sep="")
+Data_path <- paste("D:/DiGriFlex_Code/Functions_R/Codes_for_day-ahead_irradiance_forecasting/", sep="")
 
 .libPaths(c(R_libraries_path))
 sink("nul")
@@ -31,7 +29,7 @@ LQR_Bayesboot <- function(pred_for,h,N_boot) {
   #    the output is directly 0.
   # 4) N_boot is the desired number of bootstrap samples. 
 
-  load(paste0(Data_path,data_tra_name))
+  load(paste0(Data_path,"DATA_tra.RData"))
   ## ----------------------------- SET SEED FOR REPRODUCIBILITY -------------------------------
   set.seed(h)
 

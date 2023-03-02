@@ -1,4 +1,5 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
+from dotenv import dotenv_values
 from random import gauss
 from scipy.stats import norm
 import matplotlib.pyplot as plt
@@ -9,7 +10,7 @@ import pandas as pd
 
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
-os.environ['R_HOME'] = r'C:/Program Files/R/R-4.2.2'
+os.environ['R_HOME'] = 'C:\Program Files\R\R-4.1.2'  # dotenv_values()['R_HOME']
 plt.set_loglevel('WARNING')
 
 

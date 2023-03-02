@@ -1,5 +1,5 @@
 """@author: MYI, #Python version: 3.9.6 [64 bit]"""
-from auxiliary import find_nearest, find_n, figuring
+from src.auxiliary import find_nearest, find_n, figuring
 from gurobipy import Model, GRB
 from scipy.stats import norm
 import coloredlogs

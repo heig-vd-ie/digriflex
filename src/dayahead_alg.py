@@ -39,7 +39,7 @@ plt.rcParams["font.family"] = "Arial"
 plt.rcParams["grid.color"] = "k"
 plt.rcParams["grid.linestyle"] = "--"
 plt.rcParams["grid.linewidth"] = 0.5
-pio.kaleido.scope.mathjax = None
+# pio.kaleido.scope.mathjax = None
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -53,7 +53,9 @@ def forecasting_pv_da(pred_for: list, n_boot: int):
     @param n_boot: number of bootstrap samples
     @return: result_PV: forecasted PV power in kW
     """
-    ro.r['source'](r'src/forecast_lqr_bayesboot_irra_24h.R')
+    r = ro.r
+    dir_path = str(os.getcwd())
+    r['source'](dir_path + r'\src\Function_LQR_Bayesboot_irra_24h_v2.R')
     func_day_ahead_bayesboot = ro.globalenv['LQR_Bayesboot']
     result_irra, result_po = np.zeros((3, 144)), np.zeros((3, 144))
     for h in tqdm.tqdm(range(1, 145), desc="Forecasting PV power", ncols=100):
@@ -80,7 +82,7 @@ def forecasting_active_power_da(pred_for: list, fac_p: float, n_boot: int):
     @param n_boot: number of bootstrap samples
     @return: result_pdem: forecasted PV power in kW
     """
-    ro.r['source'](r'src/forecast_lqr_bayesboot_p_24h.R')
+    ro.r['source'](r'src/Function_LQR_Bayesboot_P_24h_v4.R')
     func_day_ahead_bayesboot = ro.globalenv['LQR_Bayesboot']
     result_pdem = np.zeros((3, 144))
     for h in tqdm.tqdm(range(1, 145), desc="Forecasting active power", ncols=100):
@@ -104,7 +106,7 @@ def forecasting_reactive_power_da(pred_for: list, fac_q: float, n_boot: int):
     @param n_boot: number of bootstrap samples
     @return: result_qdem: forecasted PV power in kW
     """
-    ro.r['source'](r'src/forecast_lqr_bayesboot_q_24h.R')
+    ro.r['source'](r'src/Function_LQR_Bayesboot_Q_24h_v4.R')
     func_day_ahead_bayesboot = ro.globalenv['LQR_Bayesboot']
     result_qdem = np.zeros((3, 144))
     for h in tqdm.tqdm(range(1, 145), desc="Forecasting reactive power", ncols=100):
@@ -140,6 +142,7 @@ def transition_matrix(tran: list, n_dig: int):
             row[k] = 1
         k = k + 1
     return m1
+
 
 def score_calculation(output, data_today):
     max_output = np.max(np.max(output))
@@ -712,7 +715,7 @@ if __name__ == '__main__':
         ROBUST_PAR = 1.0
     else:
         ROBUST_PAR = float(questionary.text("Confidence level of robust optimization problem?", default="0.8").ask())
-    DATE = questionary.text("Date", default=datetime.now().strftime("%Y-%m-%d")).ask()
+    DATE = questionary.text("Date", default=(datetime.now()).strftime("%Y-%m-%d")).ask()
     _, flag = dayahead_alg(robust_par=ROBUST_PAR, mode_forecast=MODE_FORECAST, date=dt(DATE, "%Y-%m-%d"),
                            previous_days=NUM_DAYS)
     log.info("Day_ahead optimization finished: {}".format(flag))

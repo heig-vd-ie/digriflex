@@ -222,7 +222,7 @@ def access_data_rt(year: int, month: int, day: int, hour: int = 23, minute: int 
     date_now = datetime.strptime(str(year) + '-' + str(month) + '-' + str(day) + " " + str(hour) + ":" + str(minute),
                                  '%Y-%m-%d %H:%M')
     if datetime.strftime(my_result.index[-1], '%Y-%m-%d %H:%M') \
-            < datetime.strftime(date_now - timedelta(hours=24), '%Y-%m-%d %H:%M'):
+            < datetime.strftime(date_now - timedelta(hours=48), '%Y-%m-%d %H:%M'):
         warnings.warn("The recorded data is older than 24 hours.")
     return my_result
 
