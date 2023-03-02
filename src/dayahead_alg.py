@@ -1,5 +1,6 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
 from auxiliary import grid_topology_sim
+from dotenv import dotenv_values
 from datetime import datetime, timedelta
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from realtime_alg import access_data_rt
@@ -29,7 +30,8 @@ import plotly.io as pio
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
 dt = datetime.strptime
-python64_path = os.getcwd() + r"/.venv/Scripts/python.exe"
+dir_path = dotenv_values()["DIR_PATH"]
+python64_path = dir_path + r"/.venv/Scripts/python.exe"
 network_name = "Case_4bus_DiGriFlex"
 log = logging.getLogger(__name__)
 coloredlogs.install(level="INFO")
@@ -54,7 +56,6 @@ def forecasting_pv_da(pred_for: list, n_boot: int):
     @return: result_PV: forecasted PV power in kW
     """
     r = ro.r
-    dir_path = str(os.getcwd())
     r['source'](dir_path + r'\src\Function_LQR_Bayesboot_irra_24h_v2.R')
     func_day_ahead_bayesboot = ro.globalenv['LQR_Bayesboot']
     result_irra, result_po = np.zeros((3, 144)), np.zeros((3, 144))
@@ -82,7 +83,7 @@ def forecasting_active_power_da(pred_for: list, fac_p: float, n_boot: int):
     @param n_boot: number of bootstrap samples
     @return: result_pdem: forecasted PV power in kW
     """
-    ro.r['source'](r'src/Function_LQR_Bayesboot_P_24h_v4.R')
+    ro.r['source'](dir_path + r'src/Function_LQR_Bayesboot_P_24h_v4.R')
     func_day_ahead_bayesboot = ro.globalenv['LQR_Bayesboot']
     result_pdem = np.zeros((3, 144))
     for h in tqdm.tqdm(range(1, 145), desc="Forecasting active power", ncols=100):
@@ -106,7 +107,7 @@ def forecasting_reactive_power_da(pred_for: list, fac_q: float, n_boot: int):
     @param n_boot: number of bootstrap samples
     @return: result_qdem: forecasted PV power in kW
     """
-    ro.r['source'](r'src/Function_LQR_Bayesboot_Q_24h_v4.R')
+    ro.r['source'](dir_path + r'src/Function_LQR_Bayesboot_Q_24h_v4.R')
     func_day_ahead_bayesboot = ro.globalenv['LQR_Bayesboot']
     result_qdem = np.zeros((3, 144))
     for h in tqdm.tqdm(range(1, 145), desc="Forecasting reactive power", ncols=100):
@@ -165,15 +166,15 @@ def score_calculation(output, data_today):
         likelihood1[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[0, :], 0, err_std * i * 0.01).sum())
         likelihood2[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[1, :], 0, err_std * i * 0.01).sum())
         likelihood3[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[2, :], 0, err_std * i * 0.01).sum())
-    with open(".cache/log1.txt", "a") as f:
+    with open(dir_path + ".cache/log1.txt", "a") as f:
         f.write("{}\n".format(score1))
         f.write("{}\n".format(score2))
         f.write("{}\n".format(score3))
-    with open(".cache/log2.txt", "a") as f:
+    with open(dir_path + ".cache/log2.txt", "a") as f:
         f.write("{}\n".format(p_value1))
         f.write("{}\n".format(p_value2))
         f.write("{}\n".format(p_value3))
-    with open(".cache/log3.txt", "a") as f:
+    with open(dir_path + ".cache/log3.txt", "a") as f:
         f.write("{}\n".format(list(np.arange(err_std * 0.01, err_std * (number_l + 1) * 0.01, 0.01))))
         f.write("{}\n".format((likelihood1 + likelihood2 + likelihood3) / 3))
 
@@ -664,40 +665,40 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     result_price[4][:] = 0.5 * result_price[4][:]
     result_price[5][:] = 0.5 * result_price[5][:]
     grid_inp = grid_topology_sim(network_name, [])
-    if not os.path.exists(".cache"):
-        os.mkdir(".cache")
-    if not os.path.exists(".cache/outputs"):
-        os.mkdir(".cache/outputs")
-    with open(r".cache/outputs/tmp_da.pickle", "wb") as file_to_store:
+    if not os.path.exists(dir_path + ".cache"):
+        os.mkdir(dir_path + ".cache")
+    if not os.path.exists(dir_path + ".cache/outputs"):
+        os.mkdir(dir_path + ".cache/outputs")
+    with open(dir_path + r".cache/outputs/tmp_da.pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, result_v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price,
                      robust_par), file_to_store)
     tomorrow = date + timedelta(days=1)
-    with open(r".cache/outputs/for" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
+    with open(dir_path + r".cache/outputs/for" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, result_v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price,
                      robust_par), file_to_store)
     os.system(python64_path +
               ' -c ' +
               '\"import sys;' +
-              'sys.path.insert(0, r\'' + os.getcwd() + '\');' +
+              'sys.path.insert(0, r\'' + dir_path + '\');' +
               'import os;' +
               'import pickle;' +
               'from datetime import datetime;' +
               'from src.optimization_prob import *;' +
-              'file_to_read = open(r\'.cache/outputs/tmp_da.pickle\', \'rb\');' +
+              'file_to_read = open(r\'' + dir_path + '\' + r\'.cache/outputs/tmp_da.pickle\', \'rb\');' +
               '(grid_inp, v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price, robust_par) = ' +
               'pickle.load(file_to_read);' +
               'file_to_read.close();' +
               'p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj = ' +
               'da_opt_digriflex(grid_inp, v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price, ' +
               'robust_par);' +
-              'file_to_store = open(r\'.cache/outputs/tmp_da.pickle\', \'wb\');' +
+              'file_to_store = open(r\'' + dir_path + '\' + r\'.cache/outputs/tmp_da.pickle\', \'wb\');' +
               'pickle.dump((p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj), file_to_store);' +
               'file_to_store.close()\"'
               )
-    with open(r".cache/outputs/tmp_da.pickle", "rb") as file_to_read:
+    with open(dir_path + r".cache/outputs/tmp_da.pickle", "rb") as file_to_read:
         p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj = pickle.load(file_to_read)
-    if (not os.path.isfile(r".cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle")) or (obj != 0):
-        with open(r".cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
+    if (not os.path.isfile(dir_path + r".cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle")) or (obj != 0):
+        with open(dir_path + r".cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
             pickle.dump((p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj), file_to_store)
     return obj, True
 

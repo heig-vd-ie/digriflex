@@ -1,7 +1,7 @@
 ##### Path of installed packages
 user_name_str <- Sys.info()[[7]]
 R_libraries_path <- paste("C:/Users/",user_name_str,"/Documents/R/win-library/4.1", sep="")
-Data_path <- paste("D:/DiGriFlex_Code/Functions_R/Re__Modification_of_the_code/", sep="")
+Data_path <- paste("D:/DiGridFlex_version2/DiGriFlex/data/", sep="")
 
 .libPaths(c(R_libraries_path))
 sink("nul")
@@ -24,7 +24,7 @@ LQR_Bayesboot <- function(pred_for, h, N_boot) {
   # 4) N_boot is the desired number of bootstrap samples. 
   pred_for <- data.frame(pred_for[c(1)],pred_for[c(2)],pred_for[c(3)],pred_for[c(4)],pred_for[c(5)],pred_for[c(6)],
                          pred_for[c(7)],pred_for[c(8)])
-  load(paste0(Data_path,"DATA_tra_v4.RData"))
+  load(paste0(Data_path,"data_tra_pq.RData"))
   # Normalize the inputs
   base_P <- list("xmin" = min(P_tra), "xmax" = max(P_tra))
   P_tra <- (P_tra-base_P$xmin)/(base_P$xmax-base_P$xmin)

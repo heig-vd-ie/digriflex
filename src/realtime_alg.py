@@ -18,7 +18,8 @@ import warnings
 
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
-python64_path = os.getcwd() + r"/.venv/Scripts/python.exe"
+dir_path = dotenv_values()["DIR_PATH"]
+python64_path = dir_path + r"/.venv/Scripts/python.exe"
 network_name = "Case_4bus_DiGriFlex"
 log = logging.getLogger(__name__)
 coloredlogs.install(level="INFO")
@@ -43,8 +44,8 @@ def interface_control_digriflex(vec_inp: list, date: datetime, forecasting=False
     filepath = None
     for i in range(30):
         date = (today - timedelta(days=i)).strftime("%Y_%m_%d")
-        if os.path.exists(r".cache/outputs/res" + date + ".pickle"):
-            filepath = r".cache/outputs/res" + date + ".pickle"
+        if os.path.exists(dir_path + r".cache/outputs/res" + date + ".pickle"):
+            filepath = dir_path + r".cache/outputs/res" + date + ".pickle"
     if filepath is None:
         raise FileNotFoundError("The file res.pickle does not exist for the last 30 days")
     with open(filepath, "rb") as file_to_read:
@@ -81,26 +82,28 @@ def interface_control_digriflex(vec_inp: list, date: datetime, forecasting=False
     grid_inp = grid_topology_sim(network_name, vec_inp)
     p_net = p_sc[timestep] + 0.5 * rpn_sc[timestep] - 0 * rpp_sc[timestep]
     q_net = q_sc[timestep] + 0 * rqn_sc[timestep] - 0 * rqp_sc[timestep]
-    with open(r".cache/outputs/tmp_rt.pickle", "wb") as file_to_store:
+    with open(dir_path + r".cache/outputs/tmp_rt.pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, 400, p_net, q_net, result_p_pv, [result_p_dm, result_q_dm], soc, soc_desired[timestep],
                      prices), file_to_store)
     os.system(python64_path +
               ' -c ' +
               '\"import sys;' +
               'import pickle;' +
-              'file_to_read = open(r\'.cache/outputs/tmp_rt.pickle\', \'rb\');' +
+              'print(sys.version);' +
+              'sys.path.insert(0, r\'' + dir_path + '\');'
+              'file_to_read = open(r\'' + dir_path + '\' + r\'.cache/outputs/tmp_rt.pickle\', \'rb\');' +
               '(grid_inp, v_mag, p_net, q_net, forecast_pv, forecast_dm, soc, soc_desired, prices) = ' +
               'pickle.load(file_to_read);' +
               'file_to_read.close();'
               'from src.optimization_prob import *;'
               'abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q, rt_res = ' +
               'rt_opt_digriflex(grid_inp, v_mag, p_net, q_net, forecast_pv, forecast_dm, soc, soc_desired, prices);'
-              'file_to_store = open(r\'.cache/outputs/tmp_rt.pickle\', \'wb\');' +
+              'file_to_store = open(r\'' + dir_path + '\' + r\'.cache/outputs/tmp_rt.pickle\', \'wb\');' +
               'pickle.dump((abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q, rt_res), ' +
               'file_to_store);' +
               'file_to_store.close()\"'
               )
-    with open(r".cache/outputs/tmp_rt.pickle", "rb") as file_to_read:
+    with open(dir_path + r".cache/outputs/tmp_rt.pickle", "rb") as file_to_read:
         (abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp, abb_p_exp, f_p, f_q, rt_res) = pickle.load(file_to_read)
     # Test and save data
     df = pd.DataFrame([[today, pred_for.index[-1], data_rt.iloc[-1]['Plag2_for'] / 1000,
@@ -112,7 +115,7 @@ def interface_control_digriflex(vec_inp: list, date: datetime, forecasting=False
                         ond_p, ond_q, soc, f_p_real, f_q_real, -p_net, -q_net,
                         - battery_p_sp, battery_q_sp, abb_p_sp, abb_c_sp
                         ]])
-    df.to_csv(r'.cache/outputs/realtime_data.csv', mode='a', header=False)
+    df.to_csv(dir_path + r'.cache/outputs/realtime_data.csv', mode='a', header=False)
     # Define outputs
     vec_out = [0] * 16
     vec_out[0] = battery_p_sp  # output in kw // sum of phase
@@ -294,6 +297,6 @@ def forecasting_reactive_power_rt(pred_for: list, time_step: int, fac_q: float):
 
 if __name__ == "__main__":
     DATE = datetime.now()
-    VEC_INP = open(r"data/test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
+    VEC_INP = open(dir_path + r"data/test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
     VEC_OUT, _ = interface_control_digriflex(vec_inp=VEC_INP, date=DATE)
     log.info("The output of the interface is: " + str(VEC_OUT))

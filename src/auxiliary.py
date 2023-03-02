@@ -10,7 +10,8 @@ import pandas as pd
 
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
-os.environ['R_HOME'] = 'C:\Program Files\R\R-4.1.2'  # dotenv_values()['R_HOME']
+os.environ['R_HOME'] = "C:/Program Files/R/R-4.1.2"
+dir_path = "D:/DiGridFlex_version2/DiGriFlex/"
 plt.set_loglevel('WARNING')
 
 
@@ -677,10 +678,10 @@ def figuring(grid_inp: plt.plot, meas_inp: dict, meas: dict, fig_type: str, titl
     @param title: title of the figure
     @return: figure
     """
-    if not os.path.exists(".cache"):
-        os.mkdir(".cache")
-    if not os.path.exists(".cache/figures"):
-        os.mkdir(".cache/figures")
+    if not os.path.exists(dir_path + ".cache"):
+        os.mkdir(dir_path + ".cache")
+    if not os.path.exists(dir_path + ".cache/figures"):
+        os.mkdir(dir_path + ".cache/figures")
     w, h = 10, 4
     plt.style.use('bmh')
     plt.set_loglevel('WARNING')
@@ -817,7 +818,7 @@ def figuring(grid_inp: plt.plot, meas_inp: dict, meas: dict, fig_type: str, titl
         plt.xticks(x_tik, x_tik)
         plt.subplots_adjust(hspace=0.4)
     if True:
-        plt.savefig(os.path.join('.cache/figures',
+        plt.savefig(os.path.join(dir_path + '.cache/figures',
                                  title.replace('\\', '').replace('$', '').replace('.', '') + '.pdf'),
                     bbox_inches='tight')
 
