@@ -1,14 +1,17 @@
 ##### Path of installed packages
 user_name_str <- Sys.info()[[7]]
-R_libraries_path <- paste("C:/Users/",user_name_str,"/Documents/R/win-library/4.1", sep="")
-Data_path <- paste("D:/DiGridFlex_version2/DiGriFlex/data/", sep="")
+version <- list.dirs(paste("C:/Users/",user_name_str,"/Documents/R/win-library", sep=""))
+print(version[2])
+R_libraries_path <- paste(version[2], sep="")
+Data_path <- paste("D:/digriflex/data/", sep="")
 
 .libPaths(c(R_libraries_path))
 sink("nul")
 
-##### Load required librarues
+##### Load required libraries
 library(bayesboot)
 library(zoo, warn.conflicts = FALSE)
+
 LQR_Bayesboot <- function(pred_for, h, N_boot) {
   # This function provides a forecast y(t), given data observed until the time interval t-2
   

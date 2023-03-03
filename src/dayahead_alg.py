@@ -83,7 +83,7 @@ def forecasting_active_power_da(pred_for: list, fac_p: float, n_boot: int):
     @param n_boot: number of bootstrap samples
     @return: result_pdem: forecasted PV power in kW
     """
-    ro.r['source'](dir_path + r'src/Function_LQR_Bayesboot_P_24h_v4.R')
+    ro.r['source'](dir_path + r'/src/Function_LQR_Bayesboot_P_24h_v4.R')
     func_day_ahead_bayesboot = ro.globalenv['LQR_Bayesboot']
     result_pdem = np.zeros((3, 144))
     for h in tqdm.tqdm(range(1, 145), desc="Forecasting active power", ncols=100):
@@ -107,7 +107,7 @@ def forecasting_reactive_power_da(pred_for: list, fac_q: float, n_boot: int):
     @param n_boot: number of bootstrap samples
     @return: result_qdem: forecasted PV power in kW
     """
-    ro.r['source'](dir_path + r'src/Function_LQR_Bayesboot_Q_24h_v4.R')
+    ro.r['source'](dir_path + r'/src/Function_LQR_Bayesboot_Q_24h_v4.R')
     func_day_ahead_bayesboot = ro.globalenv['LQR_Bayesboot']
     result_qdem = np.zeros((3, 144))
     for h in tqdm.tqdm(range(1, 145), desc="Forecasting reactive power", ncols=100):
@@ -166,15 +166,15 @@ def score_calculation(output, data_today):
         likelihood1[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[0, :], 0, err_std * i * 0.01).sum())
         likelihood2[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[1, :], 0, err_std * i * 0.01).sum())
         likelihood3[i - 1] = np.log(norm.pdf(np.array(np.reshape(data_today, -1).tolist()[-144:]) - output[2, :], 0, err_std * i * 0.01).sum())
-    with open(dir_path + ".cache/log1.txt", "a") as f:
+    with open(dir_path + r"/.cache/log1.txt", "a") as f:
         f.write("{}\n".format(score1))
         f.write("{}\n".format(score2))
         f.write("{}\n".format(score3))
-    with open(dir_path + ".cache/log2.txt", "a") as f:
+    with open(dir_path + r"/.cache/log2.txt", "a") as f:
         f.write("{}\n".format(p_value1))
         f.write("{}\n".format(p_value2))
         f.write("{}\n".format(p_value3))
-    with open(dir_path + ".cache/log3.txt", "a") as f:
+    with open(dir_path + r"/.cache/log3.txt", "a") as f:
         f.write("{}\n".format(list(np.arange(err_std * 0.01, err_std * (number_l + 1) * 0.01, 0.01))))
         f.write("{}\n".format((likelihood1 + likelihood2 + likelihood3) / 3))
 
@@ -204,7 +204,7 @@ def forecasting0(data0: list, name: str, data_today):
     fig['layout']['xaxis']['title'] = 'time period'
     fig['layout']['yaxis']['title'] = name
     fig['layout']["title"] = "NoClustering"
-    plotly.io.write_image(fig, '.cache/figures/f0_' + name + '.pdf', format="pdf")
+    plotly.io.write_image(fig, dir_path + r'/.cache/figures/f0_' + name + '.pdf', format="pdf")
     avg = np.average(output, axis=1)
     rank = ss.rankdata(avg)
     f_i = np.where(rank == 2)
@@ -254,7 +254,7 @@ def forecasting1(data0: list, name: str, data_today):
                        text="Silhouette score = %.4f" % score,
                        showarrow=False,
                        yshift=10)
-    plotly.io.write_image(fig, '.cache/figures/f1_' + name + '.pdf', format="pdf")
+    plotly.io.write_image(fig, dir_path + r'/.cache/figures/f1_' + name + '.pdf', format="pdf")
     avg = np.average(output, axis=1)
     rank = ss.rankdata(avg)
     f_i = np.where(rank == 2)
@@ -324,7 +324,7 @@ def forecasting2(data0: list, name: str, previous_days: int, data_today):
                        text="Silhouette score = %.4f" % score,
                        showarrow=False,
                        yshift=10)
-    plotly.io.write_image(fig, '.cache/figures/f2_' + name + '.pdf', format="pdf")
+    plotly.io.write_image(fig, dir_path + r'/.cache/figures/f2_' + name + '.pdf', format="pdf")
     err_p = np.max(output, axis=0) - np.transpose(y_pred)
     err_n = np.transpose(y_pred) - np.min(output, axis=0)
     vec_out = np.zeros((3, 144))
@@ -361,7 +361,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int, data_today: np.
     fig['layout']['xaxis']['title'] = 'time period'
     fig['layout']['yaxis']['title'] = name
     fig['layout']["title"] = "NoClustering"
-    plotly.io.write_image(fig, '.cache/figures/f3_' + name + '_scen.pdf', format="pdf")
+    plotly.io.write_image(fig, dir_path + r'/.cache/figures/f3_' + name + '_scen.pdf', format="pdf")
 
     data1 = np.resize(data0, (previous_days * 144, 1))
     data = pd.DataFrame(data1, columns=['output'])
@@ -402,7 +402,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int, data_today: np.
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     plt.colorbar(im, cax=cax)
-    plt.savefig(r'.cache/figures/im' + name + '.pdf', bbox_inches='tight')
+    plt.savefig(dir_path + r'/.cache/figures/im' + name + '.pdf', bbox_inches='tight')
     plt.close()
     mc = qe.MarkovChain(tm)
     y_scen = np.zeros((100, 144))
@@ -435,7 +435,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int, data_today: np.
     # fig['layout']["legend"] = dict(x=0, y=.5, traceorder="normal")
     fig['layout']['xaxis']['title'] = 'time period'
     fig['layout']['yaxis']['title'] = name
-    plotly.io.write_image(fig, '.cache/figures/m3_' + name + '_scen.pdf', format="pdf")
+    plotly.io.write_image(fig, dir_path + r'/.cache/figures/m3_' + name + '_scen.pdf', format="pdf")
 
     model = KMeans(n_clusters=3, random_state=0).fit(y_scen)
     output = model.cluster_centers_
@@ -464,7 +464,7 @@ def forecasting3(data0: np.array, name: str, previous_days: int, data_today: np.
                        text="Silhouette score = %.4f" % score,
                        showarrow=False,
                        yshift=10)
-    plotly.io.write_image(fig, '.cache/figures/f3_' + name + '.pdf', format="pdf")
+    plotly.io.write_image(fig, dir_path + r'/.cache/figures/f3_' + name + '.pdf', format="pdf")
 
     err_p = np.max(output, axis=0) - y_pred0
     err_n = y_pred0 - np.min(output, axis=0)
@@ -665,15 +665,15 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     result_price[4][:] = 0.5 * result_price[4][:]
     result_price[5][:] = 0.5 * result_price[5][:]
     grid_inp = grid_topology_sim(network_name, [])
-    if not os.path.exists(dir_path + ".cache"):
-        os.mkdir(dir_path + ".cache")
-    if not os.path.exists(dir_path + ".cache/outputs"):
-        os.mkdir(dir_path + ".cache/outputs")
-    with open(dir_path + r".cache/outputs/tmp_da.pickle", "wb") as file_to_store:
+    if not os.path.exists(dir_path + r"/.cache"):
+        os.mkdir(dir_path + r"/.cache")
+    if not os.path.exists(dir_path + r"/.cache/outputs"):
+        os.mkdir(dir_path + r"/.cache/outputs")
+    with open(dir_path + r"/.cache/outputs/tmp_da.pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, result_v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price,
                      robust_par), file_to_store)
     tomorrow = date + timedelta(days=1)
-    with open(dir_path + r".cache/outputs/for" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
+    with open(dir_path + r"/.cache/outputs/for" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, result_v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price,
                      robust_par), file_to_store)
     os.system(python64_path +
@@ -684,21 +684,21 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
               'import pickle;' +
               'from datetime import datetime;' +
               'from src.optimization_prob import *;' +
-              'file_to_read = open(r\'' + dir_path + '\' + r\'.cache/outputs/tmp_da.pickle\', \'rb\');' +
+              'file_to_read = open(r\'' + dir_path + '\' + r\'/.cache/outputs/tmp_da.pickle\', \'rb\');' +
               '(grid_inp, v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price, robust_par) = ' +
               'pickle.load(file_to_read);' +
               'file_to_read.close();' +
               'p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj = ' +
               'da_opt_digriflex(grid_inp, v_mag, result_p_pv, result_p_dm, result_q_dm, result_soc, result_price, ' +
               'robust_par);' +
-              'file_to_store = open(r\'' + dir_path + '\' + r\'.cache/outputs/tmp_da.pickle\', \'wb\');' +
+              'file_to_store = open(r\'' + dir_path + '\' + r\'/.cache/outputs/tmp_da.pickle\', \'wb\');' +
               'pickle.dump((p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj), file_to_store);' +
               'file_to_store.close()\"'
               )
-    with open(dir_path + r".cache/outputs/tmp_da.pickle", "rb") as file_to_read:
+    with open(dir_path + r"/.cache/outputs/tmp_da.pickle", "rb") as file_to_read:
         p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj = pickle.load(file_to_read)
-    if (not os.path.isfile(dir_path + r".cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle")) or (obj != 0):
-        with open(dir_path + r".cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
+    if (not os.path.isfile(dir_path + r"/.cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle")) or (obj != 0):
+        with open(dir_path + r"/.cache/outputs/res" + tomorrow.strftime("%Y_%m_%d") + ".pickle", "wb") as file_to_store:
             pickle.dump((p_sc, q_sc, rpp_sc, rpn_sc, rqp_sc, rqn_sc, soc_desired, prices, obj), file_to_store)
     return obj, True
 

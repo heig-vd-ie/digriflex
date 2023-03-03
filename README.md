@@ -24,7 +24,10 @@ The full paper of the formulation can be found [here](https://ieeexplore.ieee.or
     poetry install
     ```
 6. If you want to run the function with LabVIEW, you have to use python3.6 32bit version 
-7. Set the .env variables and also variables of R (global variables in python and R)
+7. Set the .env variables and also variables of R (global variables in python and R or put everything in the following folder):
+   ```
+   D:/digriflex 
+   ```
 8. It needs gurobi installed with licence 
 9. Run the following command in terminal:
     ```shell

@@ -1,5 +1,4 @@
 """@author: MYI, #Python version: 3.6.8 [32 bit]"""
-from dotenv import dotenv_values
 from random import gauss
 from scipy.stats import norm
 import matplotlib.pyplot as plt
@@ -10,8 +9,8 @@ import pandas as pd
 
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
-os.environ['R_HOME'] = "C:/Program Files/R/R-4.1.2"
-dir_path = "D:/DiGridFlex_version2/DiGriFlex/"
+os.environ['R_HOME'] = "C:/Program Files/R/" + os.listdir("C:/Program Files/R/")[0]
+dir_path = "D:/digriflex/"
 plt.set_loglevel('WARNING')
 
 
@@ -676,12 +675,12 @@ def figuring(grid_inp: plt.plot, meas_inp: dict, meas: dict, fig_type: str, titl
     @param meas: measurement file
     @param fig_type: type of figure to plot
     @param title: title of the figure
-    @return: figure
+    @return:
     """
-    if not os.path.exists(dir_path + ".cache"):
-        os.mkdir(dir_path + ".cache")
-    if not os.path.exists(dir_path + ".cache/figures"):
-        os.mkdir(dir_path + ".cache/figures")
+    if not os.path.exists(dir_path + "/.cache"):
+        os.mkdir(dir_path + "/.cache")
+    if not os.path.exists(dir_path + "/.cache/figures"):
+        os.mkdir(dir_path + "/.cache/figures")
     w, h = 10, 4
     plt.style.use('bmh')
     plt.set_loglevel('WARNING')
@@ -818,7 +817,7 @@ def figuring(grid_inp: plt.plot, meas_inp: dict, meas: dict, fig_type: str, titl
         plt.xticks(x_tik, x_tik)
         plt.subplots_adjust(hspace=0.4)
     if True:
-        plt.savefig(os.path.join(dir_path + '.cache/figures',
+        plt.savefig(os.path.join(dir_path + '/.cache/figures',
                                  title.replace('\\', '').replace('$', '').replace('.', '') + '.pdf'),
                     bbox_inches='tight')
 
@@ -1076,7 +1075,7 @@ def find_n(bus_name: int, buses: list):
 def find_nearest(array: np.array, value: float):
     """
     @description: Finds the index of the nearest value in the array
-    @param array: Array of values
+    @param array:  of values
     @param value: Value to find the nearest
     @return: Index of the nearest value in the array
     """

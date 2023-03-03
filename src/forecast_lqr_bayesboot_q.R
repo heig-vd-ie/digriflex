@@ -1,8 +1,9 @@
 # Path of installed packages
 user_name_str <- Sys.info()[[7]]
-current_path <- getwd()
-R_libraries_path <- paste("C:/Users/",user_name_str,"/Documents/R/win-library/4.0", sep="")
-Data_path <- paste(current_path, "/data/", sep="")
+version <- list.dirs(paste("C:/Users/",user_name_str,"/Documents/R/win-library", sep=""))
+print(version[2])
+R_libraries_path <- paste(version[2], sep="")
+Data_path <- paste("D:/digriflex/data/", sep="")
 data_file <- "data_tra_q_rt.RDATA"
 
 .libPaths(c(R_libraries_path))
