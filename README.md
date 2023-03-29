@@ -3,7 +3,13 @@
 This code is written for the project DiGriFlex. More information regarding this project can be found 
 [here](http://iese.heig-vd.ch/projets/digriflex).
 
-The full paper of the formulation can be found [here](https://ieeexplore.ieee.org/document/9721415).
+The following papers present the modeling and the formulations of this project:
+- [Rayati, Mohammad, Mokhtar Bozorg, Rachid Cherkaoui, and Mauro Carpita. "Distributionally robust chance constrained optimization for providing flexibility in an active distribution network." IEEE Transactions on Smart Grid 13, no. 4 (2022): 2920-2934.](https://ieeexplore.ieee.org/document/9721415).
+- [Rayati, Mohammad, Mokhtar Bozorg, Mauro Carpita, Pasquale De Falco, Pierluigi Caramia, Antonio Bracale, Daniela Proto, and Fabio Mottola. "Real-Time Distribution Grid Control and Flexibility Provision under Uncertainties: Laboratory Demonstration." In 2022 IEEE 21st Mediterranean Electrotechnical Conference (MELECON), pp. 866-871. IEEE, 2022.](https://ieeexplore.ieee.org/abstract/document/9842979)
+- [Rayati, Mohammad, Mokhtar Bozorg, Mauro Carpita, and Rachid Cherkaoui. "Stochastic optimization and Markov chain-based scenario generation for exploiting the underlying flexibilities of an active distribution network." Sustainable Energy, Grids and Networks (2023): 100999.](https://www.sciencedirect.com/science/article/pii/S2352467723000073)
+- [Bozorg, Mokhtar, Antonio Bracale, Mauro Carpita, Pasquale De Falco, Fabio Mottola, and Daniela Proto. "Bayesian bootstrapping in real-time probabilistic photovoltaic power forecasting." Solar Energy 225 (2021): 577-590.](https://www.sciencedirect.com/science/article/pii/S0038092X21006393)
+- [Bozorg, Mokhtar, Antonio Bracale, Pierluigi Caramia, Guido Carpinelli, Mauro Carpita, and Pasquale De Falco. "Bayesian bootstrap quantile regression for probabilistic photovoltaic power forecasting." Protection and Control of Modern Power Systems 5, no. 1 (2020): 1-12.](https://pcmp.springeropen.com/articles/10.1186/s41601-020-00167-7)
+- [Bozorg, Mokhtar, Mauro Carpita, Pasquale De Falco, Davide Lauria, Fabio Mottola, and Daniela Proto. "A derivative-persistence method for real time photovoltaic power forecasting." In 2020 International Conference on Smart Grids and Energy Systems (SGES), pp. 843-847. IEEE, 2020.](https://ieeexplore.ieee.org/abstract/document/9364445)
 
 ### What is this repository for? ###
 1. Forecasting loads and PV production in an active distribution grid 
