@@ -18,7 +18,7 @@ import warnings
 
 # Global variables
 # ----------------------------------------------------------------------------------------------------------------------
-dir_path = dotenv_values()["DIR_PATH"]
+dir_path = "D:/digriflex"  # dotenv_values()["DIR_PATH"]
 python64_path = dir_path + r"/.venv/Scripts/python.exe"
 network_name = "Case_4bus_DiGriFlex"
 log = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ coloredlogs.install(level="INFO")
 
 # Functions
 # ----------------------------------------------------------------------------------------------------------------------
-def interface_control_digriflex(vec_inp: list, date: datetime, forecasting=False):
+def interface_control_digriflex(vec_inp: list, date: datetime = datetime.now(), forecasting=False):
     """
     @param vec_inp: list of the input values
     @param date: the date of the input values
@@ -42,7 +42,7 @@ def interface_control_digriflex(vec_inp: list, date: datetime, forecasting=False
     today = date
     timestep = today.hour * 6 + math.floor(today.minute / 10)
     filepath = None
-    for i in range(30):
+    for i in range(1):
         date = (today - timedelta(days=i)).strftime("%Y_%m_%d")
         if os.path.exists(dir_path + r"/.cache/outputs/res" + date + ".pickle"):
             filepath = dir_path + r"/.cache/outputs/res" + date + ".pickle"
@@ -80,8 +80,8 @@ def interface_control_digriflex(vec_inp: list, date: datetime, forecasting=False
         result_p_pv, result_irra, result_p_dm, result_q_dm = data_rt["P"].iloc[-1], data_rt["irra"].iloc[-1], \
             data_rt["Pdem"].iloc[-1], data_rt["Qdem"].iloc[-1]
     grid_inp = grid_topology_sim(network_name, vec_inp)
-    p_net = p_sc[timestep] + 0.5 * rpn_sc[timestep] - 0 * rpp_sc[timestep]
-    q_net = q_sc[timestep] + 0 * rqn_sc[timestep] - 0 * rqp_sc[timestep]
+    p_net = p_sc[timestep] - 0 * rpn_sc[timestep] + 0.2 * rpp_sc[timestep]
+    q_net = q_sc[timestep] - 0.5 * rqn_sc[timestep] + 0.0 * rqp_sc[timestep]
     with open(dir_path + r"/.cache/outputs/tmp_rt.pickle", "wb") as file_to_store:
         pickle.dump((grid_inp, 400, p_net, q_net, result_p_pv, [result_p_dm, result_q_dm], soc, soc_desired[timestep],
                      prices), file_to_store)
@@ -122,7 +122,8 @@ def interface_control_digriflex(vec_inp: list, date: datetime, forecasting=False
     vec_out[1] = battery_q_sp  # output in kVar // sum of phase
     vec_out[4] = abb_p_sp
     vec_out[5] = abb_c_sp
-    return vec_out, rt_res
+    return vec_out
+    #, rt_res
 
 
 def access_data_rt(year: int, month: int, day: int, hour: int = 23, minute: int = 50):
@@ -161,11 +162,16 @@ def access_data_rt(year: int, month: int, day: int, hour: int = 23, minute: int 
                                  "%Y-%m-%d %H:%M")
     date_1month = date_now - timedelta(days=30)
     env_vars = dotenv_values()
-    mydb = mysql.connector.connect(host=env_vars["HOST"],
-                                   user=env_vars["USER"],
-                                   port=env_vars["PORT"],
-                                   password=env_vars["PASSWORD"],
-                                   database=env_vars["DATABASE"])  # Database for reading real-time data
+    # mydb = mysql.connector.connect(host=env_vars["HOST"],
+    #                                user=env_vars["USER"],
+    #                                port=env_vars["PORT"],
+    #                                password=env_vars["PASSWORD"],
+    #                                database=env_vars["DATABASE"])  # Database for reading real-time data
+    mydb = mysql.connector.connect(host="10.192.48.47",
+                                   user="heigvd_meteo_ro",
+                                   port="3306",
+                                   password="at5KUPusS9",
+                                   database="heigvdch_meteo")  # Database for reading real-time data
     my_cursor1 = mydb.cursor()
     my_cursor1.execute(
         "SELECT `Date and Time`, `Labo Reine.ABB.Power AC [W]`, `Meteo.Irradiance.Rayonnement Global moyen [W/m2]`,"
@@ -298,5 +304,5 @@ def forecasting_reactive_power_rt(pred_for: list, time_step: int, fac_q: float):
 if __name__ == "__main__":
     DATE = datetime.now()
     VEC_INP = open(dir_path + r"/data/test_douglas_interface.txt", encoding="ISO-8859-1").read().splitlines()
-    VEC_OUT, _ = interface_control_digriflex(vec_inp=VEC_INP, date=DATE)
+    VEC_OUT = interface_control_digriflex(vec_inp=VEC_INP, date=DATE)
     log.info("The output of the interface is: " + str(VEC_OUT))

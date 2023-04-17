@@ -656,7 +656,7 @@ def dayahead_alg(robust_par: float, mode_forecast: str, date: datetime, previous
     log.info("Deviation from the range of forecast of q_dem is {}%.".format((error_pos_qdm + error_neg_qdm) * 100))
     result_p_pv = np.maximum(np.zeros((3, 144)), result_p_pv)
     result_v_mag = 0.03 * np.ones((2, 144))
-    result_soc = [50, 0.75, 0.75]
+    result_soc = [89, 0.1, 0.75]
     result_price = np.ones((6, 144))
     result_price[0][:] = 10 * result_price[0][:]
     result_price[1][:] = 0 * result_price[1][:]

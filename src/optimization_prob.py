@@ -32,8 +32,8 @@ def rt_following_digriflex(grid_inp: dict, p_net: float, q_net: float, forecast_
     @return: float, the reactive power following the DiGriFlex model
     Outputs: abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp
     """
-    forecast_p = forecast_pv - forecast_dm[0]
-    forecast_q = - forecast_dm[1]
+    forecast_p = forecast_pv - forecast_dm[0] / 10
+    forecast_q = - forecast_dm[1] / 10
     abb_p_cap = grid_inp["PV_elements"][0]["cap_kVA_perPhase"] * 3
     abb_steps = [0, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     battery_p_cap_pos = min([grid_inp["storage_elements"][0]["P_max_kW"],
@@ -44,12 +44,18 @@ def rt_following_digriflex(grid_inp: dict, p_net: float, q_net: float, forecast_
                               - soc * grid_inp["storage_elements"][0]["SOC_max_kWh"] / 100) * 6])
     battery_q_cap = np.sqrt(grid_inp["storage_elements"][0]["S_max_kVA"] ** 2 -
                             max([battery_p_cap_pos, - battery_p_cap_neg]) ** 2)
+    print(battery_p_cap_pos)
+    print(forecast_pv)
+    print(forecast_dm[0] / 10)
+    print(p_net)
     if forecast_p - p_net <= battery_p_cap_pos:
         battery_p_sp = max([- forecast_p + p_net, battery_p_cap_neg])
         abb_p_sp = 100
+        print("1. " + str(battery_p_sp))
     else:
         battery_p_sp = battery_p_cap_pos
         abb_p_sp, _ = find_nearest(abb_steps, (battery_p_sp + p_net + forecast_dm[0]) * 100 / abb_p_cap)
+        print("2. " + str(battery_p_sp))
     abb_p_exp = min([forecast_pv, abb_p_sp * abb_p_cap / 100])
     battery_q_sp = max([min([forecast_q - q_net, battery_q_cap]), - battery_q_cap])
     abb_q_max = abb_p_exp * np.tan(np.arccos(0.89))
@@ -62,6 +68,9 @@ def rt_following_digriflex(grid_inp: dict, p_net: float, q_net: float, forecast_
     _, abb_p_sp = find_nearest(abb_steps, abb_p_sp)
     f_p = abb_p_exp + battery_p_sp - forecast_dm[0]
     f_q = - np.sin(np.arctan(abb_c_sp)) * abb_p_exp + battery_q_sp + forecast_q
+    print(soc)
+    if abs(battery_p_sp) > 1e6:
+        battery_p_sp = 0
     return abb_p_sp, round(abb_c_sp, 3), round(battery_p_sp, 3), round(battery_q_sp, 3), abb_p_exp, - f_p, - f_q
 
 
@@ -82,6 +91,7 @@ def rt_opt_digriflex(grid_inp: dict, v_mag: float, p_net: float, q_net: float, f
     @return: float, the reactive power following the digriflex model
     outputs: abb_p_sp, abb_c_sp, battery_p_sp, battery_q_sp
     """
+    forecast_pv /= 1000
     p_net, q_net = - p_net, - q_net
     rt_meas_inp = {}
     meas_inp = dict()
@@ -93,8 +103,8 @@ def rt_opt_digriflex(grid_inp: dict, v_mag: float, p_net: float, q_net: float, f
     meas_inp["DeltaT"] = 10 / 60
     abb_steps = [0, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     meas_inp["meas_location"] = [{"from": "1", "to": "3", "tran/line": "line"}]
-    rt_meas_inp["DM_P"] = {0: forecast_dm[0]}
-    rt_meas_inp["DM_Q"] = {0: forecast_dm[1]}
+    rt_meas_inp["DM_P"] = {0: forecast_dm[0] / 10}
+    rt_meas_inp["DM_Q"] = {0: forecast_dm[1] / 10}
     rt_meas_inp["P_PV"] = forecast_pv / grid_inp["PV_elements"][0]["cap_kVA_perPhase"]
     rt_meas_inp["ST_SOC_t_1"] = {0: soc_battery}
     rt_meas_inp["ST_SOC_des"] = {0: soc_desired}
@@ -111,7 +121,7 @@ def rt_opt_digriflex(grid_inp: dict, v_mag: float, p_net: float, q_net: float, f
     rt_meas_inp["ConPoint_Q_DA_RS_neg"] = {0: 0}
     da_result: dict = {}
     da_result, rt_res = rt_optimization(rt_meas_inp, meas_inp, grid_inp, da_result)
-    if not da_result["time_out"]:
+    if False: ## not da_result["time_out"]:
         abb_p_sp = da_result["Solution_PV_P"]
         abb_q_sp = da_result["Solution_PV_Q"]
         battery_p_sp = da_result["Solution_ST_P"]
